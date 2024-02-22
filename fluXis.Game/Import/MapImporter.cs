@@ -7,7 +7,7 @@ using fluXis.Game.Database;
 using fluXis.Game.Database.Maps;
 using fluXis.Game.Map;
 using fluXis.Game.Overlay.Notifications;
-using fluXis.Game.Overlay.Notifications.Types.Loading;
+using fluXis.Game.Overlay.Notifications.Tasks;
 using osu.Framework.Platform;
 
 namespace fluXis.Game.Import;
@@ -18,15 +18,13 @@ public class MapImporter
     public virtual string GameName => "Unknown";
     public virtual bool SupportsAutoImport => false;
     public virtual string Color => "#000000";
-    public virtual string StoragePath => "";
 
     /// <summary>
     /// ID of the importer in the database.
     /// </summary>
     public int ID { get; internal set; }
 
-    public MapResourceProvider Resources { get; set; }
-
+    internal Func<string, MapResourceProvider> ResourceRequest { get; set; }
     internal Storage Storage { get; set; }
     internal FluXisRealm Realm { get; set; }
     internal MapStore MapStore { get; set; }
@@ -37,6 +35,17 @@ public class MapImporter
     public virtual List<RealmMapSet> GetMaps() => new();
 
     /// <summary>
+    /// Used to request the resource provider for the given folder.
+    /// </summary>
+    /// <param name="folder">
+    /// Path to the folder to request the resource provider for.
+    /// </param>
+    /// <returns>
+    /// The requested resource provider.
+    /// </returns>
+    protected MapResourceProvider GetResourceProvider(string folder) => ResourceRequest(folder);
+
+    /// <summary>
     /// Used to pass the mapset to FluXisImport to add it to the database.
     /// </summary>
     /// <param name="path">
@@ -45,7 +54,7 @@ public class MapImporter
     /// <param name="notification">
     /// Loading notification to update.
     /// </param>
-    protected void FinalizeConversion(string path, LoadingNotificationData notification = null)
+    protected void FinalizeConversion(string path, TaskNotificationData notification = null)
     {
         notification ??= CreateNotification();
 
@@ -108,13 +117,7 @@ public class MapImporter
     protected string CreatePackage(string name, string folder)
     {
         string path = Path.Combine(Storage.GetFullPath("import"), name + ".fms");
-
-        var pack = ZipFile.Open(path, ZipArchiveMode.Create);
-
-        foreach (var file in Directory.GetFiles(folder))
-            pack.CreateEntryFromFile(file, Path.GetFileName(file));
-
-        pack.Dispose();
+        ZipFile.CreateFromDirectory(folder, path, CompressionLevel.NoCompression, false);
         return path;
     }
 
@@ -124,16 +127,16 @@ public class MapImporter
     /// <returns>
     /// The created notification.
     /// </returns>
-    protected LoadingNotificationData CreateNotification()
+    protected TaskNotificationData CreateNotification()
     {
-        var notification = new LoadingNotificationData
+        var notification = new TaskNotificationData
         {
-            TextLoading = $"Importing {GameName} map...",
-            TextSuccess = $"Imported {GameName} map!",
-            TextFailure = $"Failed to import {GameName} map!"
+            Text = $"Importing {GameName} map...",
+            TextWorking = "Importing...",
+            TextFinished = "Done! Click to view."
         };
 
-        Notifications.Add(notification);
+        Notifications.AddTask(notification);
         return notification;
     }
 
@@ -166,6 +169,9 @@ public class MapImporter
     /// </param>
     protected static void CopyFile(ZipArchiveEntry entry, string folder)
     {
+        // create subdirectories if necessary
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(folder, entry.FullName)));
+
         string destPath = Path.Combine(folder, entry.FullName);
         entry.ExtractToFile(destPath, true);
     }
@@ -181,6 +187,9 @@ public class MapImporter
     /// </param>
     protected static void CopyFile(string path, string folder)
     {
+        // create subdirectories if necessary
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(folder, path)));
+
         string destPath = Path.Combine(folder, Path.GetFileName(path));
         File.Copy(path, destPath, true);
     }

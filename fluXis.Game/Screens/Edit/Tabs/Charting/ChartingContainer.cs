@@ -1,19 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Input;
 using fluXis.Game.Map.Structures;
 using fluXis.Game.Overlay.Notifications;
 using fluXis.Game.Screens.Edit.Actions.Notes;
 using fluXis.Game.Screens.Edit.Tabs.Charting.Blueprints;
 using fluXis.Game.Screens.Edit.Tabs.Charting.Playfield;
+using fluXis.Game.Screens.Edit.Tabs.Charting.Points;
 using fluXis.Game.Screens.Edit.Tabs.Charting.Tools;
 using fluXis.Game.Screens.Edit.Tabs.Charting.Tools.Effects;
+using fluXis.Game.Screens.Gameplay;
+using fluXis.Game.Utils;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
@@ -24,11 +28,14 @@ namespace fluXis.Game.Screens.Edit.Tabs.Charting;
 
 public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformAction>, IKeyBindingHandler<FluXisGlobalKeybind>
 {
+    public const float WAVEFORM_OFFSET = 20;
+
     public IReadOnlyList<ChartingTool> Tools { get; } = new ChartingTool[]
     {
         new SelectTool(),
         new SingleNoteTool(),
-        new LongNoteTool()
+        new LongNoteTool(),
+        new TickNoteTool()
     };
 
     public IReadOnlyList<EffectTool> EffectTools { get; } = new EffectTool[]
@@ -55,6 +62,8 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
     [Resolved]
     private NotificationManager notifications { get; set; }
 
+    public Bindable<string> CurrentHitSound { get; } = new($"{Hitsounding.DEFAULT_PREFIX}normal");
+
     private DependencyContainer dependencies;
     private InputManager inputManager;
     private double scrollAccumulation;
@@ -62,6 +71,9 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
     private Container playfieldContainer;
     private Box dim;
     private Toolbox.Toolbox toolbox;
+
+    private ClickableContainer sidebarClickHandler;
+    private PointsSidebar sidebar;
 
     public EditorPlayfield Playfield { get; private set; }
     public BlueprintContainer BlueprintContainer { get; private set; }
@@ -95,7 +107,14 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
                 Colour = Colour4.Black.Opacity(.4f),
                 Alpha = 0
             },
-            toolbox = new Toolbox.Toolbox()
+            toolbox = new Toolbox.Toolbox(),
+            sidebarClickHandler = new ClickableContainer
+            {
+                RelativeSizeAxes = Axes.Both,
+                Alpha = 0,
+                Action = () => sidebar.OnWrapperClick?.Invoke()
+            },
+            sidebar = new PointsSidebar()
         };
     }
 
@@ -105,11 +124,28 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
 
         inputManager = GetContainingInputManager();
 
-        toolbox.Expanded.BindValueChanged(e =>
+        toolbox.Expanded.BindValueChanged(e => Schedule(() => onSidebarExpand(e)));
+        sidebar.Expanded.BindValueChanged(e => Schedule(() => onSidebarExpand(e)));
+
+        void onSidebarExpand(ValueChangedEvent<bool> e)
         {
-            dim.FadeTo(e.NewValue ? 1 : 0, 400, Easing.OutCubic);
-            playfieldContainer.MoveToX(e.NewValue ? 40 : 0, 500, Easing.OutCubic);
-        });
+            var showDim = toolbox.Expanded.Value || sidebar.Expanded.Value;
+            dim.FadeTo(showDim ? 1 : 0, 400, Easing.OutCubic);
+
+            var leftSide = toolbox.Expanded.Value;
+            var rightSide = sidebar.Expanded.Value;
+            var bothSides = leftSide && rightSide;
+
+            var offset = bothSides switch
+            {
+                false when leftSide => 40,
+                false when rightSide => -40,
+                _ => 0
+            };
+
+            playfieldContainer.MoveToX(offset, 500, Easing.OutCubic);
+            sidebarClickHandler.FadeTo(rightSide ? 1 : 0);
+        }
     }
 
     protected override bool OnKeyDown(KeyDownEvent e)
@@ -246,16 +282,11 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
 
     public void Copy(bool deleteAfter = false)
     {
-        var hits = BlueprintContainer.SelectionHandler.SelectedObjects.OfType<HitObject>().Select(x => new HitObject
-        {
-            Time = x.Time,
-            Lane = x.Lane,
-            HoldTime = x.HoldTime
-        }).ToList();
+        var hits = BlueprintContainer.SelectionHandler.SelectedObjects.OfType<HitObject>().Select(h => h.Copy()).ToList();
 
         if (!hits.Any())
         {
-            notifications.SendSmallText("Nothing selected.", FontAwesome.Solid.Times);
+            notifications.SendSmallText("Nothing selected.", FontAwesome6.Solid.XMark);
             return;
         }
 
@@ -265,24 +296,24 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
             hit.Time -= minTime;
 
         var content = new EditorClipboardContent { HitObjects = hits };
-        clipboard.SetText(content.ToString() ?? string.Empty);
+        clipboard.SetText(content.Serialize());
 
         if (deleteAfter)
         {
-            notifications.SendSmallText($"Cut {content.HitObjects.Count} hit objects.", FontAwesome.Solid.Check);
+            notifications.SendSmallText($"Cut {content.HitObjects.Count} hit objects.", FontAwesome6.Solid.Check);
             BlueprintContainer.SelectionHandler.DeleteSelected();
         }
         else
-            notifications.SendSmallText($"Copied {content.HitObjects.Count} hit objects.", FontAwesome.Solid.Check);
+            notifications.SendSmallText($"Copied {content.HitObjects.Count} hit objects.", FontAwesome6.Solid.Check);
     }
 
     public void Paste()
     {
-        var content = EditorClipboardContent.Deserialize(clipboard.GetText());
+        var content = clipboard.GetText()?.Deserialize<EditorClipboardContent>();
 
         if (content == null)
         {
-            notifications.SendSmallText("Clipboard is empty.", FontAwesome.Solid.Times);
+            notifications.SendSmallText("Clipboard is empty.", FontAwesome6.Solid.XMark);
             return;
         }
 
@@ -295,7 +326,7 @@ public partial class ChartingContainer : Container, IKeyBindingHandler<PlatformA
 
         values.ActionStack.Add(new NotePasteAction(content.HitObjects.ToArray(), values.MapInfo));
 
-        notifications.SendSmallText($"Pasted {content.HitObjects.Count} hit objects.", FontAwesome.Solid.Check);
+        notifications.SendSmallText($"Pasted {content.HitObjects.Count} hit objects.", FontAwesome6.Solid.Check);
     }
 
     public bool OnPressed(KeyBindingPressEvent<FluXisGlobalKeybind> e)

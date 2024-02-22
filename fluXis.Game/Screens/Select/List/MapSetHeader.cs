@@ -5,20 +5,18 @@ using fluXis.Game.Audio;
 using fluXis.Game.Database;
 using fluXis.Game.Database.Maps;
 using fluXis.Game.Graphics;
-using fluXis.Game.Graphics.Background;
-using fluXis.Game.Graphics.Cover;
 using fluXis.Game.Graphics.Drawables;
 using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
 using fluXis.Game.Graphics.UserInterface.Menu;
 using fluXis.Game.Map;
+using fluXis.Game.Map.Drawables;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Logging;
@@ -38,11 +36,11 @@ public partial class MapSetHeader : Container, IHasContextMenu
             if (!Equals(maps.CurrentMapSet, mapset))
                 items.Add(new FluXisMenuItem("Select", MenuItemType.Highlighted, () => maps.Select(mapset.LowestDifficulty, true)));
 
-            items.Add(new FluXisMenuItem("Export", FontAwesome.Solid.BoxOpen, MenuItemType.Normal, () => parent.ExportAction?.Invoke(mapset)) { Enabled = () => !mapset.Managed });
-            items.Add(new FluXisMenuItem("Delete", FontAwesome.Solid.Times, MenuItemType.Dangerous, () => parent.DeleteAction?.Invoke(mapset)));
+            items.Add(new FluXisMenuItem("Export", FontAwesome6.Solid.BoxOpen, MenuItemType.Normal, () => parent.ExportAction?.Invoke(mapset)) { Enabled = () => !mapset.Managed });
+            items.Add(new FluXisMenuItem("Delete", FontAwesome6.Solid.Trash, MenuItemType.Dangerous, () => parent.DeleteAction?.Invoke(mapset)));
 
             if (FluXisGameBase.IsDebug)
-                items.Add(new FluXisMenuItem("Copy ID", FontAwesome.Solid.Copy, MenuItemType.Normal, () => clipboard?.SetText(mapset.ID.ToString())));
+                items.Add(new FluXisMenuItem("Copy ID", FontAwesome6.Solid.Copy, MenuItemType.Normal, () => clipboard?.SetText(mapset.ID.ToString())));
 
             return items.ToArray();
         }
@@ -97,14 +95,11 @@ public partial class MapSetHeader : Container, IHasContextMenu
         BorderColour = colorsLoaded ? ColourInfo.GradientVertical(color.Lighten(1), color) : Colour4.White;
         Children = new Drawable[]
         {
-            backgroundWrapper = new DelayedLoadUnloadWrapper(() => background = new MapBackground
+            backgroundWrapper = new DelayedLoadUnloadWrapper(() => background = new MapBackground(mapset.Maps[0], true)
             {
-                Map = mapset.Maps[0],
                 RelativeSizeAxes = Axes.Both,
-                FillMode = FillMode.Fill,
                 Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                Cropped = true
+                Origin = Anchor.Centre
             }, 100, 200)
             {
                 RelativeSizeAxes = Axes.Both
@@ -153,7 +148,7 @@ public partial class MapSetHeader : Container, IHasContextMenu
                                 RelativeSizeAxes = Axes.Both,
                                 Masking = true,
                                 CornerRadius = 10,
-                                Child = new DrawableCover(mapset)
+                                Child = new MapCover(mapset)
                                 {
                                     RelativeSizeAxes = Axes.Both,
                                     Anchor = Anchor.Centre,
@@ -174,20 +169,18 @@ public partial class MapSetHeader : Container, IHasContextMenu
                                 Spacing = new Vector2(0, -5),
                                 Children = new Drawable[]
                                 {
-                                    new FluXisSpriteText
+                                    new TruncatingText
                                     {
                                         FontSize = 32,
                                         Text = mapset.Metadata.Title,
                                         RelativeSizeAxes = Axes.X,
-                                        Truncate = true,
                                         Shadow = true
                                     },
-                                    new FluXisSpriteText
+                                    new TruncatingText
                                     {
                                         FontSize = 24,
                                         Text = mapset.Metadata.Artist,
                                         RelativeSizeAxes = Axes.X,
-                                        Truncate = true,
                                         Shadow = true
                                     }
                                 }

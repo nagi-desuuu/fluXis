@@ -1,23 +1,52 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using fluXis.Game.Map.Events;
+using fluXis.Game.Utils;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using osu.Framework.Graphics;
+using osu.Framework.Logging;
 
 namespace fluXis.Game.Map;
 
 public class MapEvents
 {
+    [JsonProperty("laneswitch")]
     public List<LaneSwitchEvent> LaneSwitchEvents { get; init; } = new();
+
+    [JsonProperty("flash")]
     public List<FlashEvent> FlashEvents { get; init; } = new();
+
+    [JsonProperty("pulse")]
     public List<PulseEvent> PulseEvents { get; init; } = new();
+
+    [JsonProperty("playfieldmove")]
     public List<PlayfieldMoveEvent> PlayfieldMoveEvents { get; init; } = new();
+
+    [JsonProperty("playfieldscale")]
     public List<PlayfieldScaleEvent> PlayfieldScaleEvents { get; init; } = new();
+
+    [JsonProperty("shake")]
     public List<ShakeEvent> ShakeEvents { get; init; } = new();
+
+    [JsonProperty("playfieldfade")]
     public List<PlayfieldFadeEvent> PlayfieldFadeEvents { get; init; } = new();
 
-    public MapEvents Load(string content)
+    [JsonProperty("shader")]
+    public List<ShaderEvent> ShaderEvents { get; init; } = new();
+
+    public static T Load<T>(string content)
+        where T : MapEvents, new()
+    {
+        if (!content.Trim().StartsWith('{'))
+            return new T().loadLegacy(content) as T;
+
+        var events = content.Deserialize<T>();
+        return events.sorted() as T;
+    }
+
+    private MapEvents loadLegacy(string content)
     {
         var lines = content.Split(Environment.NewLine);
 
@@ -25,7 +54,9 @@ public class MapEvents
         {
             int index = line.IndexOf('(');
             int index2 = line.IndexOf(')');
-            if (index == -1 || index2 == -1) continue;
+
+            if (index == -1 || index2 == -1)
+                continue;
 
             var type = line[..index];
             var args = line[(index + 1)..index2].Split(',');
@@ -48,7 +79,8 @@ public class MapEvents
                 }
 
                 case "Flash":
-                    if (args.Length < 8) continue;
+                    if (args.Length < 8)
+                        continue;
 
                     float duration = float.Parse(args[1], CultureInfo.InvariantCulture);
                     bool inBackground = args[2] == "true";
@@ -79,7 +111,8 @@ public class MapEvents
                     break;
 
                 case "PlayfieldMove":
-                    if (args.Length < 4) continue;
+                    if (args.Length < 4)
+                        continue;
 
                     PlayfieldMoveEvents.Add(new PlayfieldMoveEvent
                     {
@@ -91,7 +124,8 @@ public class MapEvents
                     break;
 
                 case "PlayfieldScale":
-                    if (args.Length < 5) continue;
+                    if (args.Length < 5)
+                        continue;
 
                     PlayfieldScaleEvents.Add(new PlayfieldScaleEvent
                     {
@@ -104,7 +138,8 @@ public class MapEvents
                     break;
 
                 case "Shake":
-                    if (args.Length < 3) continue;
+                    if (args.Length < 3)
+                        continue;
 
                     ShakeEvents.Add(new ShakeEvent
                     {
@@ -115,7 +150,8 @@ public class MapEvents
                     break;
 
                 case "PlayfieldFade":
-                    if (args.Length < 3) continue;
+                    if (args.Length < 3)
+                        continue;
 
                     PlayfieldFadeEvents.Add(new PlayfieldFadeEvent
                     {
@@ -124,15 +160,35 @@ public class MapEvents
                         Alpha = float.Parse(args[2], CultureInfo.InvariantCulture)
                     });
                     break;
+
+                case "Shader":
+                    if (args.Length < 3)
+                        continue;
+
+                    var startIdx = line.IndexOf('{');
+                    var endIdx = line.LastIndexOf('}');
+
+                    if (startIdx == -1 || endIdx == -1)
+                        continue;
+
+                    var dataJson = line[startIdx..(endIdx + 1)];
+                    Logger.Log(dataJson);
+                    var data = dataJson.Deserialize<JObject>();
+
+                    ShaderEvents.Add(new ShaderEvent
+                    {
+                        Time = float.Parse(args[0], CultureInfo.InvariantCulture),
+                        ShaderName = args[1],
+                        ShaderParams = data
+                    });
+                    break;
             }
         }
 
-        sort();
-
-        return this;
+        return sorted();
     }
 
-    private void sort()
+    private MapEvents sorted()
     {
         LaneSwitchEvents.Sort((a, b) => a.Time.CompareTo(b.Time));
         FlashEvents.Sort((a, b) => a.Time.CompareTo(b.Time));
@@ -141,20 +197,10 @@ public class MapEvents
         PlayfieldScaleEvents.Sort((a, b) => a.Time.CompareTo(b.Time));
         ShakeEvents.Sort((a, b) => a.Time.CompareTo(b.Time));
         PlayfieldFadeEvents.Sort((a, b) => a.Time.CompareTo(b.Time));
+        ShaderEvents.Sort((a, b) => a.Time.CompareTo(b.Time));
+
+        return this;
     }
 
-    public string Save()
-    {
-        sort();
-
-        var content = "";
-        content += LaneSwitchEvents.Aggregate(string.Empty, (current, laneSwitch) => current + (laneSwitch + Environment.NewLine));
-        content += FlashEvents.Aggregate(string.Empty, (current, flash) => current + (flash + Environment.NewLine));
-        content += PulseEvents.Aggregate(string.Empty, (current, pulse) => current + (pulse + Environment.NewLine));
-        content += PlayfieldMoveEvents.Aggregate(string.Empty, (current, playfieldMove) => current + (playfieldMove + Environment.NewLine));
-        content += PlayfieldScaleEvents.Aggregate(string.Empty, (current, playfieldScale) => current + (playfieldScale + Environment.NewLine));
-        content += ShakeEvents.Aggregate(string.Empty, (current, shake) => current + (shake + Environment.NewLine));
-        content += PlayfieldFadeEvents.Aggregate(string.Empty, (current, playfieldFade) => current + (playfieldFade + Environment.NewLine));
-        return content;
-    }
+    public string Save() => sorted().Serialize();
 }

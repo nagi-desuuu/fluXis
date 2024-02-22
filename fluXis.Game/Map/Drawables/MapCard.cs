@@ -16,7 +16,6 @@ using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Screens;
@@ -42,14 +41,15 @@ public partial class MapCard : Container, IHasContextMenu
             };
 
             if (downloaded)
-                list.Add(new FluXisMenuItem("Show in Song Select", FontAwesome.Solid.Eye, selectAndShow));
+                list.Add(new FluXisMenuItem("Show in Song Select", FontAwesome6.Solid.Eye, selectAndShow));
             else if (!downloading)
-                list.Add(new FluXisMenuItem("Download", FontAwesome.Solid.Download, download));
+                list.Add(new FluXisMenuItem("Download", FontAwesome6.Solid.Download, download));
 
             return list.ToArray();
         }
     }
 
+    public int CardWidth { get; init; } = 430;
     public APIMapSet MapSet { get; }
     public Action<APIMapSet> OnClickAction { get; set; }
     public bool ShowDownloadedState { get; set; } = true;
@@ -71,7 +71,7 @@ public partial class MapCard : Container, IHasContextMenu
     [BackgroundDependencyLoader]
     private void load()
     {
-        Width = 430;
+        Width = CardWidth;
         Height = 100;
         CornerRadius = 20;
         Masking = true;
@@ -105,7 +105,7 @@ public partial class MapCard : Container, IHasContextMenu
             },
             content = new Container
             {
-                Width = 430,
+                Width = CardWidth,
                 RelativeSizeAxes = Axes.Y,
                 Masking = true,
                 CornerRadius = 20,
@@ -165,7 +165,7 @@ public partial class MapCard : Container, IHasContextMenu
                                 },
                                 new FillFlowContainer
                                 {
-                                    Width = 320,
+                                    RelativeSizeAxes = Axes.X,
                                     AutoSizeAxes = Axes.Y,
                                     Direction = FillDirection.Vertical,
                                     Anchor = Anchor.CentreLeft,
@@ -174,29 +174,26 @@ public partial class MapCard : Container, IHasContextMenu
                                     Padding = new MarginPadding { Horizontal = 10 },
                                     Children = new Drawable[]
                                     {
-                                        new FluXisSpriteText
+                                        new TruncatingText
                                         {
                                             RelativeSizeAxes = Axes.X,
                                             Text = MapSet.Title,
                                             FontSize = 24,
-                                            Shadow = true,
-                                            Truncate = true
+                                            Shadow = true
                                         },
-                                        new FluXisSpriteText
+                                        new TruncatingText
                                         {
                                             RelativeSizeAxes = Axes.X,
                                             Text = $"by {MapSet.Artist}",
                                             FontSize = 16,
-                                            Shadow = true,
-                                            Truncate = true
+                                            Shadow = true
                                         },
-                                        new FluXisSpriteText
+                                        new TruncatingText
                                         {
                                             RelativeSizeAxes = Axes.X,
                                             Text = $"mapped by {MapSet.Creator?.GetName()}",
                                             FontSize = 16,
-                                            Shadow = true,
-                                            Truncate = true
+                                            Shadow = true
                                         },
                                         new Container
                                         {
@@ -345,7 +342,7 @@ public partial class MapCard : Container, IHasContextMenu
     {
         bool shouldShow = downloading || downloaded;
 
-        content.ResizeWidthTo(shouldShow ? 420 : 430, 400, Easing.OutQuint);
+        content.ResizeWidthTo(shouldShow ? CardWidth - 10 : CardWidth, 400, Easing.OutQuint);
 
         if (downloading)
             background.Colour = Colour4.FromHex("#7BB1E8");

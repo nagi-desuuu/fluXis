@@ -1,5 +1,6 @@
 using fluXis.Game.Audio;
 using fluXis.Game.Graphics.Drawables;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface;
 using fluXis.Game.Graphics.UserInterface.Buttons;
 using fluXis.Game.Graphics.UserInterface.Color;
@@ -8,13 +9,14 @@ using fluXis.Game.Online.API.Models.Users;
 using fluXis.Game.Online.Fluxel;
 using fluXis.Game.Overlay.Login;
 using fluXis.Game.Overlay.Mouse;
-using fluXis.Game.Overlay.Profile;
+using fluXis.Game.Overlay.User;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 using osuTK;
 using osuTK.Input;
 
@@ -22,10 +24,10 @@ namespace fluXis.Game.Overlay.Toolbar;
 
 public partial class ToolbarProfile : Container, IHasTextTooltip
 {
-    public string Tooltip => loadingContainer.Alpha > 0 ? "Connecting..." : "";
+    public LocalisableString Tooltip => loadingContainer.Alpha > 0 ? "Connecting..." : "";
 
     [Resolved]
-    private ProfileOverlay profileOverlay { get; set; }
+    private UserProfileOverlay profile { get; set; }
 
     [Resolved]
     private LoginOverlay loginOverlay { get; set; }
@@ -121,7 +123,7 @@ public partial class ToolbarProfile : Container, IHasTextTooltip
                             },
                             arrow = new SpriteIcon
                             {
-                                Icon = FontAwesome.Solid.ChevronDown,
+                                Icon = FontAwesome6.Solid.ChevronDown,
                                 Size = new Vector2(10),
                                 Y = 40,
                                 Anchor = Anchor.TopCentre,
@@ -210,8 +212,10 @@ public partial class ToolbarProfile : Container, IHasTextTooltip
             loginOverlay.Show();
         else
         {
-            profileOverlay.UpdateUser(fluxel.LoggedInUser.ID);
-            profileOverlay.ToggleVisibility();
+            if (profile.State.Value == Visibility.Visible)
+                profile.Hide();
+            else
+                profile.ShowUser(fluxel.LoggedInUser.ID);
         }
 
         return true;

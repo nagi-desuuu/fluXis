@@ -1,8 +1,6 @@
 using System.Linq;
 using fluXis.Game.Database.Maps;
 using fluXis.Game.Graphics;
-using fluXis.Game.Graphics.Background;
-using fluXis.Game.Graphics.Cover;
 using fluXis.Game.Graphics.Drawables;
 using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
@@ -104,13 +102,11 @@ public partial class NormalResults : Container
                                         EdgeEffect = FluXisStyles.ShadowSmall,
                                         Children = new[]
                                         {
-                                            new MapBackground
+                                            new MapBackground(map)
                                             {
                                                 RelativeSizeAxes = Axes.Both,
                                                 Anchor = Anchor.Centre,
-                                                Origin = Anchor.Centre,
-                                                FillMode = FillMode.Fill,
-                                                Map = map
+                                                Origin = Anchor.Centre
                                             },
                                             getGradient(Colour4.Black, false),
                                             getGradient(string.IsNullOrEmpty(map.Metadata.ColorHex) ? Colour4.Black : Colour4.FromHex(map.Metadata.ColorHex), false),
@@ -122,8 +118,9 @@ public partial class NormalResults : Container
                                                 Spacing = new Vector2(-3),
                                                 Children = new Drawable[]
                                                 {
-                                                    new FluXisSpriteText
+                                                    new TruncatingText
                                                     {
+                                                        RelativeSizeAxes = Axes.X,
                                                         Anchor = Anchor.CentreLeft,
                                                         Origin = Anchor.CentreLeft,
                                                         Text = map.Difficulty,
@@ -240,7 +237,7 @@ public partial class NormalResults : Container
                                         CornerRadius = 20,
                                         Masking = true,
                                         EdgeEffect = FluXisStyles.ShadowMedium,
-                                        Child = new DrawableCover(map.MapSet)
+                                        Child = new MapCover(map.MapSet)
                                         {
                                             RelativeSizeAxes = Axes.Both,
                                             Anchor = Anchor.Centre,
@@ -256,14 +253,14 @@ public partial class NormalResults : Container
                                 Direction = FillDirection.Vertical,
                                 Children = new Drawable[]
                                 {
-                                    new FluXisSpriteText
+                                    new TruncatingText
                                     {
                                         Anchor = Anchor.Centre,
                                         Origin = Anchor.Centre,
                                         Text = map.Metadata.Title,
                                         FontSize = 36
                                     },
-                                    new FluXisSpriteText
+                                    new TruncatingText
                                     {
                                         Anchor = Anchor.Centre,
                                         Origin = Anchor.Centre,

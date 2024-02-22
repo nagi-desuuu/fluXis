@@ -1,5 +1,5 @@
 using System.IO;
-using Newtonsoft.Json;
+using fluXis.Game.Utils;
 using osu.Framework.IO.Network;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
@@ -9,7 +9,7 @@ namespace fluXis.Game.UI.Tips;
 
 public static class LoadingTips
 {
-    private const string tip_file = "cache/tips.json";
+    private const string tip_file = "tips.json";
     private const string online_path = "https://assets.flux.moe/tips.json";
 
     private static string[] tips = { "super awesome tip" };
@@ -26,17 +26,14 @@ public static class LoadingTips
     {
         try
         {
-            if (storage.Exists("tips.json"))
-                storage.Move("tips.json", tip_file);
-
-            if (!storage.Exists(tip_file)) return;
+            if (!storage.Exists(tip_file))
+                return;
 
             Logger.Log("Loading tips from local storage", LoggingTarget.Runtime, LogLevel.Debug);
 
             var stream = storage.GetStream(tip_file);
             using var sr = new StreamReader(stream);
-            var json = sr.ReadToEnd();
-            tips = JsonConvert.DeserializeObject<string[]>(json);
+            tips = sr.ReadToEnd().Deserialize<string[]>();
 
             Logger.Log("Tips loaded from local storage", LoggingTarget.Runtime, LogLevel.Debug);
         }
@@ -54,7 +51,7 @@ public static class LoadingTips
             var req = new WebRequest(online_path);
             await req.PerformAsync();
             var json = req.GetResponseString();
-            tips = JsonConvert.DeserializeObject<string[]>(json);
+            tips = json.Deserialize<string[]>();
 
             Logger.Log("Saving tips to local storage...", LoggingTarget.Network, LogLevel.Debug);
 

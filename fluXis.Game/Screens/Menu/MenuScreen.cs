@@ -16,6 +16,7 @@ using fluXis.Game.Screens.Edit;
 using fluXis.Game.Screens.Menu.UI;
 using fluXis.Game.Screens.Menu.UI.NowPlaying;
 using fluXis.Game.Screens.Menu.UI.Snow;
+using fluXis.Game.Screens.Menu.UI.Updates;
 using fluXis.Game.Screens.Menu.UI.Visualizer;
 using fluXis.Game.Screens.Multiplayer;
 using fluXis.Game.Screens.Ranking;
@@ -47,7 +48,7 @@ public partial class MenuScreen : FluXisScreen
     private MapStore maps { get; set; }
 
     [Resolved]
-    private BackgroundStack backgrounds { get; set; }
+    private GlobalBackground backgrounds { get; set; }
 
     [Resolved]
     private SettingsMenu settings { get; set; }
@@ -73,6 +74,7 @@ public partial class MenuScreen : FluXisScreen
     private Container textContainer;
     private Container buttonContainer;
     private FillFlowContainer linkContainer;
+    private MenuUpdates updates;
 
     private Sprite logoText;
     private CircularContainer animationCircle;
@@ -194,7 +196,7 @@ public partial class MenuScreen : FluXisScreen
                             },
                             new SmallMenuButton
                             {
-                                Icon = FontAwesome.Solid.Cog,
+                                Icon = FontAwesome6.Solid.Gear,
                                 Action = settings.ToggleVisibility,
                                 Width = 90,
                                 Y = 80
@@ -203,7 +205,7 @@ public partial class MenuScreen : FluXisScreen
                             {
                                 Text = LocalizationStrings.MainMenu.MultiplayerText,
                                 Description = LocalizationStrings.MainMenu.MultiplayerDescription,
-                                Icon = FontAwesome.Solid.Users,
+                                Icon = FontAwesome6.Solid.Users,
                                 Action = continueToMultiplayer,
                                 Width = 290,
                                 X = 110,
@@ -213,7 +215,7 @@ public partial class MenuScreen : FluXisScreen
                             {
                                 Text = LocalizationStrings.MainMenu.RankingText,
                                 Description = LocalizationStrings.MainMenu.RankingDescription,
-                                Icon = FontAwesome.Solid.Trophy,
+                                Icon = FontAwesome6.Solid.Trophy,
                                 Action = continueToRankings,
                                 Width = 280,
                                 X = 420,
@@ -221,7 +223,7 @@ public partial class MenuScreen : FluXisScreen
                             },
                             new SmallMenuButton
                             {
-                                Icon = FontAwesome.Solid.Times,
+                                Icon = FontAwesome6.Solid.XMark,
                                 Action = Game.Exit,
                                 Width = 90,
                                 Y = 160
@@ -230,7 +232,7 @@ public partial class MenuScreen : FluXisScreen
                             {
                                 Text = LocalizationStrings.MainMenu.BrowseText,
                                 Description = LocalizationStrings.MainMenu.BrowseDescription,
-                                Icon = FontAwesome.Solid.Download,
+                                Icon = FontAwesome6.Solid.Download,
                                 Width = 330,
                                 X = 110,
                                 Y = 160,
@@ -240,7 +242,7 @@ public partial class MenuScreen : FluXisScreen
                             {
                                 Text = LocalizationStrings.MainMenu.EditText,
                                 Description = LocalizationStrings.MainMenu.EditDescription,
-                                Icon = FontAwesome.Solid.Pen,
+                                Icon = FontAwesome6.Solid.Pen,
                                 Action = () => this.Push(new EditorLoader()),
                                 Width = 240,
                                 X = 460,
@@ -252,6 +254,7 @@ public partial class MenuScreen : FluXisScreen
                     {
                         ButtonContainer = buttonContainer
                     },
+                    updates = new MenuUpdates { X = 200 },
                     linkContainer = new FillFlowContainer
                     {
                         AutoSizeAxes = Axes.Both,
@@ -265,19 +268,19 @@ public partial class MenuScreen : FluXisScreen
                         {
                             new MenuIconButton
                             {
-                                Icon = FontAwesome.Brands.Discord,
+                                Icon = FontAwesome6.Brands.Discord,
                                 Action = () => host.OpenUrlExternally("https://discord.gg/29hMftpNq9"),
                                 Text = "Discord"
                             },
                             new MenuIconButton
                             {
-                                Icon = FontAwesome.Brands.Github,
+                                Icon = FontAwesome6.Brands.GitHub,
                                 Action = () => host.OpenUrlExternally("https://github.com/TeamFluXis/fluXis"),
                                 Text = "GitHub"
                             },
                             new MenuIconButton
                             {
-                                Icon = FontAwesome.Solid.Globe,
+                                Icon = FontAwesome6.Solid.EarthAmericas,
                                 Action = () => host.OpenUrlExternally(fluxel.Endpoint.WebsiteRootUrl),
                                 Text = "Website"
                             }
@@ -381,14 +384,20 @@ public partial class MenuScreen : FluXisScreen
     {
         textContainer.MoveToX(0, duration, Easing.OutQuint).FadeIn(duration / 2f);
         buttonContainer.MoveToX(0, duration, Easing.OutQuint).FadeIn(duration / 2f);
-        linkContainer.MoveToX(0, duration, Easing.OutQuint).FadeIn(duration / 2f);
+        // linkContainer.MoveToX(0, duration, Easing.OutQuint).FadeIn(duration / 2f);
+
+        updates.CanShow = true;
+        updates.Show(duration);
     }
 
     private void hideMenu(int duration = 400)
     {
         textContainer.MoveToX(-200, duration, Easing.OutQuint).FadeOut(duration / 2f);
         buttonContainer.MoveToX(-200, duration, Easing.OutQuint).FadeOut(duration / 2f);
-        linkContainer.MoveToX(200, duration, Easing.OutQuint).FadeOut(duration / 2f);
+        // linkContainer.MoveToX(200, duration, Easing.OutQuint).FadeOut(duration / 2f);
+
+        updates.CanShow = false;
+        updates.MoveToX(200, duration, Easing.OutQuint).FadeOut(duration / 2f);
     }
 
     private void randomizeSplash() => splashText.Text = MenuSplashes.RandomSplash;
@@ -396,12 +405,18 @@ public partial class MenuScreen : FluXisScreen
     public void PreEnter()
     {
         if (config.Get<bool>(FluXisSetting.IntroTheme))
+        {
             maps.CurrentMap = maps.CreateBuiltinMap(MapStore.BuiltinMap.Roundhouse).LowestDifficulty;
+
+            // this doesnt loop perfectly and i hate it and can't do anything about it
+            clock.RestartPoint = maps.CurrentMap?.Metadata.PreviewTime ?? 0;
+            clock.AllowLimitedLoop = false;
+            clock.Seek(0);
+        }
         else // if diabled, load a random map
             maps.CurrentMap = maps.GetRandom()?.Maps.FirstOrDefault() ?? MapStore.CreateDummyMap();
 
         clock.Stop();
-        clock.Seek(maps.CurrentMap?.Metadata.PreviewTime ?? 0);
         clock.Volume = 0;
 
         backgrounds.AddBackgroundFromMap(maps.CurrentMapSet?.Maps.First());
@@ -410,8 +425,13 @@ public partial class MenuScreen : FluXisScreen
     public override void OnEntering(ScreenTransitionEvent e)
     {
         clock.FadeIn(500);
-        clock.Seek(maps.CurrentMapSet?.Metadata?.PreviewTime ?? 0);
+
         clock.Start();
+
+        if (config.Get<bool>(FluXisSetting.IntroTheme))
+            clock.Seek(0);
+        else
+            clock.Seek(maps.CurrentMapSet?.Metadata?.PreviewTime ?? 0);
 
         pressAnyKeyText.FadeInFromZero(1400).Then().FadeOut(1400).Loop();
         inactivityTime = 0;

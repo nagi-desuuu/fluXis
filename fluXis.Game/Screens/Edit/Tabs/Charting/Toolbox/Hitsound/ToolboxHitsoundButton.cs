@@ -1,19 +1,23 @@
 using System.Collections.Generic;
 using System.Linq;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Map.Structures;
 using fluXis.Game.Screens.Edit.Actions.Notes.Hitsound;
+using fluXis.Game.Screens.Edit.Tabs.Charting.Playfield;
 using fluXis.Game.Screens.Gameplay;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 
 namespace fluXis.Game.Screens.Edit.Tabs.Charting.Toolbox.Hitsound;
 
 public partial class ToolboxHitsoundButton : ToolboxButton
 {
-    public override string Text { get; }
+    protected override string Text { get; }
 
-    public override string Tooltip
+    public override LocalisableString Tooltip
     {
         get
         {
@@ -31,17 +35,35 @@ public partial class ToolboxHitsoundButton : ToolboxButton
     [Resolved]
     private EditorValues values { get; set; }
 
+    [Resolved]
+    private EditorPlayfield playfield { get; set; }
+
+    [Resolved]
+    private ChartingContainer chartingContainer { get; set; }
+
     private IEnumerable<HitObject> hits => BlueprintContainer.SelectionHandler.SelectedObjects.Where(o => o is HitObject).Cast<HitObject>();
 
-    public override bool IsSelected => hits.Any() && hits.All(h =>
+    protected override bool IsSelected
     {
-        if (string.IsNullOrEmpty(h.HitSound))
-            return sample == "normal";
+        get
+        {
+            if (!hits.Any())
+                return chartingContainer.CurrentHitSound.Value == sampleFormatted;
 
-        return h.HitSound == $"{Hitsounding.DEFAULT_PREFIX}{sample}";
-    });
+            return hits.All(h =>
+            {
+                if (string.IsNullOrEmpty(h.HitSound))
+                    return sample == "normal";
+
+                return h.HitSound == sampleFormatted;
+            });
+        }
+    }
+
+    protected override bool PlayClickSound => false;
 
     private string sample { get; }
+    private string sampleFormatted => $"{Hitsounding.DEFAULT_PREFIX}{sample}";
 
     public ToolboxHitsoundButton(string display, string sample)
     {
@@ -54,23 +76,36 @@ public partial class ToolboxHitsoundButton : ToolboxButton
         base.LoadComplete();
         BlueprintContainer.SelectionHandler.SelectedObjects.BindCollectionChanged((_, _) => UpdateSelectionState(), true);
         values.MapInfo.HitSoundsChanged += UpdateSelectionState;
+
+        chartingContainer.CurrentHitSound.BindValueChanged(_ => UpdateSelectionState(), true);
     }
 
     public override void Select()
     {
-        values.ActionStack.Add(new NoteHitsoundChangeAction(values.MapInfo, hits.ToArray(), $"{Hitsounding.DEFAULT_PREFIX}{sample}"));
+        if (!hits.Any())
+        {
+            chartingContainer.CurrentHitSound.Value = sampleFormatted;
+            return;
+        }
 
+        values.ActionStack.Add(new NoteHitsoundChangeAction(values.MapInfo, hits.ToArray(), sampleFormatted));
         UpdateSelectionState();
+    }
+
+    protected override bool OnClick(ClickEvent e)
+    {
+        playfield.PlayHitSound(new HitObject { HitSound = sampleFormatted });
+        return base.OnClick(e);
     }
 
     protected override Drawable CreateIcon()
     {
         var icon = sample switch
         {
-            "normal" => FontAwesome.Solid.Drum,
-            "drum" => FontAwesome.Solid.Drum,
-            "clap" => FontAwesome.Solid.Hands,
-            _ => FontAwesome.Solid.Drum
+            "normal" => FontAwesome6.Solid.Drum,
+            "drum" => FontAwesome6.Solid.Drum,
+            "clap" => FontAwesome6.Solid.HandsClapping,
+            _ => FontAwesome6.Solid.Drum
         };
 
         return new SpriteIcon

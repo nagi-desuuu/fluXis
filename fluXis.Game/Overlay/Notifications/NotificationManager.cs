@@ -1,5 +1,8 @@
+using System;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
 using fluXis.Game.Overlay.Notifications.Floating;
+using fluXis.Game.Overlay.Notifications.Tasks;
 using osu.Framework.Development;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
@@ -10,6 +13,7 @@ namespace fluXis.Game.Overlay.Notifications;
 public partial class NotificationManager : Component
 {
     public FloatingNotificationContainer Floating { get; set; }
+    public TaskNotificationContainer Tasks { get; set; }
 
     public void Add(INotificationData notification)
     {
@@ -23,7 +27,19 @@ public partial class NotificationManager : Component
         Floating?.Add(notification.CreateFloating());
     }
 
-    public void SendSmallText(string text) => SendSmallText(text, FontAwesome.Solid.Info);
+    public void AddTask(TaskNotificationData notification)
+    {
+        if (!ThreadSafety.IsUpdateThread)
+        {
+            Scheduler.Add(() => AddTask(notification));
+            return;
+        }
+
+        Logger.Log($"Sending task notification: {notification}");
+        Tasks?.Add(notification.Create());
+    }
+
+    public void SendSmallText(string text) => SendSmallText(text, FontAwesome6.Solid.Info);
 
     public void SendSmallText(string text, IconUsage icon)
     {
@@ -41,13 +57,13 @@ public partial class NotificationManager : Component
         });
     }
 
-    public void SendText(string text, string subtext = "") => SendText(text, subtext, FontAwesome.Solid.Info);
+    public void SendText(string text, string subtext = "", Action action = null) => SendText(text, subtext, FontAwesome6.Solid.Info, action);
 
-    public void SendText(string text, string subtext, IconUsage icon)
+    public void SendText(string text, string subtext, IconUsage icon, Action action = null)
     {
         if (!ThreadSafety.IsUpdateThread)
         {
-            Scheduler.Add(() => SendText(text, subtext, icon));
+            Scheduler.Add(() => SendText(text, subtext, icon, action));
             return;
         }
 
@@ -56,17 +72,18 @@ public partial class NotificationManager : Component
         {
             Text = text,
             SubText = subtext,
-            Icon = icon
+            Icon = icon,
+            Action = action
         });
     }
 
-    public void SendError(string text, string subtext = "") => SendError(text, subtext, FontAwesome.Solid.Times);
+    public void SendError(string text, string subtext = "", Action action = null) => SendError(text, subtext, FontAwesome6.Solid.XMark, action);
 
-    public void SendError(string text, string subtext, IconUsage icon)
+    public void SendError(string text, string subtext, IconUsage icon, Action action = null)
     {
         if (!ThreadSafety.IsUpdateThread)
         {
-            Scheduler.Add(() => SendError(text, subtext, icon));
+            Scheduler.Add(() => SendError(text, subtext, icon, action));
             return;
         }
 
@@ -76,9 +93,10 @@ public partial class NotificationManager : Component
             Text = text,
             SubText = subtext,
             Icon = icon,
-            BackgroundColor = FluXisColors.ButtonRed,
+            AccentColor = FluXisColors.Red,
             SampleAppearing = "UI/Notifications/error.mp3",
-            Lifetime = 10000
+            Lifetime = 10000,
+            Action = action
         });
     }
 }

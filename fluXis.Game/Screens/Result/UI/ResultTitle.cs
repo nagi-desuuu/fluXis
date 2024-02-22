@@ -1,8 +1,8 @@
 using fluXis.Game.Database.Maps;
-using fluXis.Game.Graphics.Cover;
 using fluXis.Game.Graphics.Drawables;
 using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
+using fluXis.Game.Map.Drawables;
 using fluXis.Game.Online.API.Models.Users;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
@@ -54,7 +54,7 @@ public partial class ResultTitle : Container
                         Margin = new MarginPadding { Right = 10 },
                         CornerRadius = 10,
                         Masking = true,
-                        Child = new DrawableCover(map.MapSet)
+                        Child = new MapCover(map.MapSet)
                         {
                             RelativeSizeAxes = Axes.Both,
                             Anchor = Anchor.Centre,
@@ -68,28 +68,25 @@ public partial class ResultTitle : Container
                         Y = -2,
                         Children = new Drawable[]
                         {
-                            new FluXisSpriteText
+                            new TruncatingText
                             {
                                 Text = map.Metadata.Title,
                                 FontSize = 40,
-                                RelativeSizeAxes = Axes.X,
-                                Truncate = true
+                                RelativeSizeAxes = Axes.X
                             },
-                            new FluXisSpriteText
+                            new TruncatingText
                             {
                                 Text = map.Metadata.Artist,
                                 FontSize = 26,
                                 Colour = FluXisColors.Text2,
-                                Truncate = true,
                                 RelativeSizeAxes = Axes.X,
                                 Margin = new MarginPadding { Top = 33 }
                             },
-                            new FluXisSpriteText
+                            new TruncatingText
                             {
                                 Text = $"[{map.Difficulty}] mapped by {map.Metadata.Mapper}",
                                 FontSize = 22,
                                 Colour = FluXisColors.Text2,
-                                Truncate = true,
                                 RelativeSizeAxes = Axes.X,
                                 Margin = new MarginPadding { Top = 58 }
                             }

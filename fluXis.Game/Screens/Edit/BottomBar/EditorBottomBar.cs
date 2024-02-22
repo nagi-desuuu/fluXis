@@ -1,16 +1,19 @@
+using System.Collections.Generic;
 using System.Linq;
 using fluXis.Game.Graphics;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Buttons;
 using fluXis.Game.Graphics.UserInterface.Color;
+using fluXis.Game.Mods;
 using fluXis.Game.Overlay.Notifications;
 using fluXis.Game.Screens.Edit.BottomBar.Timeline;
+using fluXis.Game.Screens.Edit.Playtest;
 using fluXis.Game.Screens.Gameplay;
 using fluXis.Game.UI;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Screens;
 
 namespace fluXis.Game.Screens.Edit.BottomBar;
@@ -89,7 +92,7 @@ public partial class EditorBottomBar : Container
                                 Child = new CornerButton
                                 {
                                     ButtonText = "Test",
-                                    Icon = FontAwesome.Solid.Play,
+                                    Icon = FontAwesome6.Solid.Play,
                                     ShowImmediately = true,
                                     ButtonColor = FluXisColors.Accent2,
                                     Corner = Corner.BottomRight,
@@ -121,7 +124,22 @@ public partial class EditorBottomBar : Container
                                         var clone = values.Editor.MapInfo.Clone();
                                         clone.HitObjects = clone.HitObjects.Where(o => o.Time > startTime).ToList();
 
-                                        values.Editor.Push(new GameplayLoader(values.Editor.Map, () => new EditorPlaytestScreen(values.Editor.Map, clone, values.MapEvents, startTime)));
+                                        var shouldAutoPlay = GetContainingInputManager().CurrentState.Keyboard.ControlPressed;
+
+                                        var mods = new List<IMod>();
+
+                                        if (shouldAutoPlay)
+                                            mods.Add(new AutoPlayMod());
+                                        else
+                                            mods.Add(new NoFailMod());
+
+                                        values.Editor.Push(new GameplayLoader(values.Editor.Map, mods, () =>
+                                        {
+                                            if (shouldAutoPlay)
+                                                return new EditorAutoPlaytestScreen(values.Editor.Map, clone, startTime);
+
+                                            return new EditorPlaytestScreen(values.Editor.Map, clone, startTime);
+                                        }));
                                     }
                                 }
                             }

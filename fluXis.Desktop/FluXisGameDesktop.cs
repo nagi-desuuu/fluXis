@@ -40,5 +40,5 @@ public partial class FluXisGameDesktop : FluXisGame
     }
 
     public override LightController CreateLightController() => new OpenRGBController();
-    public override IUpdateManager CreateUpdateManager() => OperatingSystem.IsWindows() ? new WindowsUpdateManager(NotificationManager) : null;
+    public override IUpdatePerformer CreateUpdatePerformer() => OperatingSystem.IsWindows() ? new WindowsUpdatePerformer(NotificationManager) : null;
 }

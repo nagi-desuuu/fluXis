@@ -1,17 +1,19 @@
 using System.Collections.Generic;
 using System.Linq;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Overlay.Settings.UI;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Localisation;
 using osuTK;
 
 namespace fluXis.Game.Overlay.Settings;
 
 public partial class SettingsSection : FillFlowContainer
 {
-    public virtual IconUsage Icon => FontAwesome.Solid.Cog;
-    public virtual string Title => "Section";
+    public virtual IconUsage Icon => FontAwesome6.Solid.Gear;
+    public virtual LocalisableString Title => "Section";
 
     public IEnumerable<SettingsSubSection> SubSections => InternalChildren.OfType<SettingsSubSection>().ToList();
 

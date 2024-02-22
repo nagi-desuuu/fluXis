@@ -25,6 +25,7 @@ public class OsuMap
 
     // [Difficulty]
     public float CircleSize { get; set; }
+    public float OverallDifficulty { get; set; }
 
     // [Events]
     public List<OsuEvent> Events { get; init; } = new();
@@ -75,7 +76,8 @@ public class OsuMap
             HitObjects = new List<HitObject>(),
             TimingPoints = new List<TimingPoint>(),
             ScrollVelocities = new List<ScrollVelocity>(),
-            InitialKeyCount = (int)CircleSize
+            InitialKeyCount = (int)CircleSize,
+            AccuracyDifficulty = OverallDifficulty
         };
 
         List<int> keyCounts = new();
@@ -86,8 +88,10 @@ public class OsuMap
                 keyCounts.Add(hitObject.X);
         }
 
+        keyCounts.Sort();
+
         foreach (var hitObject in HitObjects)
-            mapInfo.HitObjects.Add(hitObject.ToHitObjectInfo(keyCounts.Count));
+            mapInfo.HitObjects.Add(hitObject.ToHitObjectInfo(keyCounts.IndexOf(hitObject.X)));
 
         foreach (var timingPoint in TimingPoints)
         {

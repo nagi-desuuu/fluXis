@@ -84,7 +84,7 @@ public class SkinJson
     {
         var colors = GetKeymode(maxLanes).Colors;
 
-        if (colors.Count == 0)
+        if (colors == null || colors.Count == 0)
             return Colour4.White;
 
         var color = colors[(lane - 1) % colors.Count];
@@ -94,7 +94,13 @@ public class SkinJson
     }
 
     [CanBeNull]
-    public string GetOverride(string key) => Overrides.TryGetValue(key, out var value) ? value : null;
+    public string GetOverride(string key)
+    {
+        if (string.IsNullOrEmpty(key) || Overrides == null)
+            return null;
+
+        return Overrides.TryGetValue(key, out var value) ? value : null;
+    }
 
     public string GetOverrideOrDefault(string key) => GetOverride(key) ?? key;
 

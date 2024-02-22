@@ -1,14 +1,22 @@
+using System;
 using osu.Framework.Graphics.Sprites;
 
 namespace fluXis.Game.Graphics.Sprites;
 
 public partial class FluXisSpriteText : SpriteText
 {
+    private const float web_scale = 1.4f;
+
     public float FontSize
     {
         get => base.Font.Size;
         set => base.Font = base.Font.With(size: value);
     }
+
+    // this is super wacky...
+    // the font is rendered smaller here than in a web browser/figma
+    // this multiplier should be about right to make them match up
+    public float WebFontSize { set => FontSize = value * web_scale; }
 
     public new FluXisFont Font
     {
@@ -21,12 +29,20 @@ public partial class FluXisSpriteText : SpriteText
         set => base.Font = base.Font.With(fixedWidth: value);
     }
 
+    [Obsolete("Use TruncatingText instead.")]
+    public new bool Truncate
+    {
+        set => throw new InvalidOperationException("Use TruncatingText instead.");
+    }
+
     public FluXisSpriteText()
     {
         Font = FluXisFont.RenogareSoft;
     }
 
     public static FontUsage GetFont(FluXisFont font = FluXisFont.RenogareSoft, float size = 20, bool fixedWidth = false) => new(font.ToString(), size, fixedWidth: fixedWidth);
+
+    public static float GetWebFontSize(float i) => i * web_scale;
 }
 
 public enum FluXisFont

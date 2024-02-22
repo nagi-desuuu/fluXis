@@ -5,20 +5,25 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using fluXis.Game.Audio;
+using fluXis.Game.Audio.Preview;
 using fluXis.Game.Configuration;
 using fluXis.Game.Database;
 using fluXis.Game.Database.Maps;
 using fluXis.Game.Graphics;
 using fluXis.Game.Graphics.Background;
 using fluXis.Game.Graphics.Background.Cropped;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Import;
 using fluXis.Game.Input;
 using fluXis.Game.Integration;
+using fluXis.Game.IO;
 using fluXis.Game.Localization;
 using fluXis.Game.Map;
 using fluXis.Game.Online;
 using fluXis.Game.Online.Activity;
+using fluXis.Game.Online.API.Models.Users;
 using fluXis.Game.Online.Fluxel;
+using fluXis.Game.Online.Multiplayer;
 using fluXis.Game.Overlay.Chat;
 using fluXis.Game.Overlay.Toolbar;
 using fluXis.Game.Overlay.Login;
@@ -26,10 +31,11 @@ using fluXis.Game.Overlay.Mouse;
 using fluXis.Game.Overlay.Music;
 using fluXis.Game.Overlay.Network;
 using fluXis.Game.Overlay.Notifications;
-using fluXis.Game.Overlay.Profile;
 using fluXis.Game.Overlay.Register;
 using fluXis.Game.Overlay.Settings;
+using fluXis.Game.Overlay.User;
 using fluXis.Game.Plugins;
+using fluXis.Game.Scoring;
 using fluXis.Game.Screens;
 using fluXis.Game.Screens.Gameplay.HUD;
 using fluXis.Game.Screens.Menu;
@@ -40,15 +46,14 @@ using fluXis.Game.UI.Tips;
 using fluXis.Game.Updater;
 using fluXis.Game.Utils;
 using fluXis.Resources;
-using Newtonsoft.Json;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Configuration;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.IO.Stores;
 using osu.Framework.Localisation;
+using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Framework.Utils;
 using osuTK;
@@ -78,13 +83,14 @@ public partial class FluXisGameBase : osu.Framework.Game
     protected GlobalCursorOverlay CursorOverlay { get; private set; }
     protected LoginOverlay LoginOverlay { get; private set; }
     protected ChatOverlay ChatOverlay { get; private set; }
-    protected ProfileOverlay ProfileOverlay { get; private set; }
+    protected UserProfileOverlay ProfileOverlay { get; private set; }
     protected RegisterOverlay RegisterOverlay { get; private set; }
     protected NotificationManager NotificationManager { get; private set; }
     protected MusicPlayer MusicPlayer { get; private set; }
-    protected BackgroundStack BackgroundStack { get; private set; }
+    protected GlobalBackground GlobalBackground { get; private set; }
     protected UISamples Samples { get; private set; }
     protected Fluxel Fluxel { get; private set; }
+    protected MultiplayerClient MultiplayerClient { get; private set; }
     protected FluXisConfig Config { get; private set; }
     protected MapStore MapStore { get; private set; }
 
@@ -100,6 +106,7 @@ public partial class FluXisGameBase : osu.Framework.Game
     private SkinManager skinManager;
     private PluginManager pluginManager;
     private ImportManager importManager;
+    private PreviewManager previewManager;
 
     protected Bindable<UserActivity> Activity { get; } = new();
     public Season CurrentSeason { get; private set; }
@@ -111,7 +118,7 @@ public partial class FluXisGameBase : osu.Framework.Game
     public static bool IsDebug => Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration == "Debug";
 
     public virtual LightController CreateLightController() => new();
-    public virtual IUpdateManager CreateUpdateManager() => null;
+    public virtual IUpdatePerformer CreateUpdatePerformer() => null;
 
     protected FluXisGameBase()
     {
@@ -132,11 +139,6 @@ public partial class FluXisGameBase : osu.Framework.Game
         Resources.AddStore(new DllResourceStore(FluXisResources.ResourceAssembly));
         initFonts();
 
-        /*foreach (var availableResource in Resources.GetAvailableResources())
-        {
-            Logger.Log(availableResource, LoggingTarget.Runtime, LogLevel.Debug);
-        }*/
-
         MapFiles.Initialize(storage.GetStorageForDirectory("maps"));
 
         CurrentSeason = getSeason();
@@ -150,7 +152,13 @@ public partial class FluXisGameBase : osu.Framework.Game
         dependencies.Cache(GlobalClock = new GlobalClock());
         dependencies.Cache(realm = new FluXisRealm(storage));
         dependencies.Cache(NotificationManager = new NotificationManager());
-        dependencies.Cache(Fluxel = new Fluxel(Config, endpoint));
+
+        Fluxel = new Fluxel(endpoint);
+        LoadComponent(Fluxel);
+        dependencies.Cache(Fluxel);
+
+        dependencies.CacheAs(MultiplayerClient = new OnlineMultiplayerClient());
+
         UserCache.Init(Fluxel);
 
         dependencies.Cache(new BackgroundTextureStore(Host, storage.GetStorageForDirectory("maps")));
@@ -159,6 +167,8 @@ public partial class FluXisGameBase : osu.Framework.Game
 
         LoadComponent(MapStore = new MapStore());
         dependencies.Cache(MapStore);
+
+        dependencies.Cache(new ReplayStorage(storage.GetStorageForDirectory("replays")));
 
         LoadComponent(pluginManager = new PluginManager());
         dependencies.Cache(pluginManager);
@@ -169,7 +179,7 @@ public partial class FluXisGameBase : osu.Framework.Game
         LoadComponent(Samples = new UISamples());
         dependencies.Cache(Samples);
 
-        dependencies.Cache(BackgroundStack = new BackgroundStack());
+        dependencies.Cache(GlobalBackground = new GlobalBackground());
         dependencies.Cache(CursorOverlay = new GlobalCursorOverlay());
         dependencies.Cache(Settings = new SettingsMenu());
         dependencies.Cache(LoginOverlay = new LoginOverlay());
@@ -177,11 +187,15 @@ public partial class FluXisGameBase : osu.Framework.Game
         dependencies.CacheAs(RegisterOverlay = new RegisterOverlay());
         dependencies.Cache(Toolbar = new Toolbar());
         dependencies.Cache(ScreenStack = new FluXisScreenStack { Activity = Activity });
-        dependencies.Cache(ProfileOverlay = new ProfileOverlay());
+        dependencies.Cache(ProfileOverlay = new UserProfileOverlay());
         dependencies.CacheAs(lightController = CreateLightController());
         dependencies.Cache(skinManager = new SkinManager());
         dependencies.Cache(MusicPlayer = new MusicPlayer { ScreenStack = ScreenStack });
         dependencies.Cache(Dashboard = new Dashboard());
+
+        previewManager = new PreviewManager();
+        LoadComponent(previewManager);
+        dependencies.Cache(previewManager);
 
         var layoutManager = new LayoutManager();
         LoadComponent(layoutManager);
@@ -200,6 +214,7 @@ public partial class FluXisGameBase : osu.Framework.Game
                 RelativeSizeAxes = Axes.Both,
                 Children = new Drawable[]
                 {
+                    MultiplayerClient,
                     keybinds = new GlobalKeybindContainer(this, realm)
                     {
                         Children = new Drawable[]
@@ -223,8 +238,8 @@ public partial class FluXisGameBase : osu.Framework.Game
         keybindStore.AssignDefaults(new GameplayKeybindContainer(realm, 0));
 
         dependencies.Cache(keybinds);
-        MenuSplashes.Load(storage);
-        LoadingTips.Load(storage);
+        MenuSplashes.Load(Host.CacheStorage);
+        LoadingTips.Load(Host.CacheStorage);
     }
 
     protected override void LoadComplete()
@@ -238,7 +253,26 @@ public partial class FluXisGameBase : osu.Framework.Game
         }, true);
     }
 
-    public void PerformUpdateCheck(bool silent, bool forceUpdate = false) => Task.Run(() => CreateUpdateManager()?.Perform(silent, forceUpdate));
+    public void PerformUpdateCheck(bool silent, bool forceUpdate = false)
+    {
+        Task.Run(() =>
+        {
+            var checker = new UpdateChecker(Config.Get<ReleaseChannel>(FluXisSetting.ReleaseChannel));
+
+            if (forceUpdate || checker.UpdateAvailable)
+            {
+                var performer = CreateUpdatePerformer();
+                var version = checker.LatestVersion;
+
+                if (performer != null)
+                    performer.Perform(version);
+                else
+                    NotificationManager.SendText($"New update available! ({version})", "Check the github releases to download the latest version.", FontAwesome6.Solid.Download);
+            }
+            else if (!silent)
+                NotificationManager.SendText("No updates available.", "You are running the latest version.", FontAwesome6.Solid.Check);
+        });
+    }
 
     private Season getSeason()
     {
@@ -260,12 +294,11 @@ public partial class FluXisGameBase : osu.Framework.Game
         if (File.Exists(path))
         {
             var json = File.ReadAllText(path);
-            var custom = JsonConvert.DeserializeObject<APIEndpointConfig>(json);
-            return custom.AddDefaults();
+            return json.Deserialize<APIEndpointConfig>().AddDefaults();
         }
 
         var defaultEndpoint = new APIEndpointConfig().AddDefaults();
-        File.WriteAllText(path, defaultEndpoint.ToString());
+        File.WriteAllText(path, defaultEndpoint.Serialize());
 
         return getApiEndpoint();
     }
@@ -281,6 +314,10 @@ public partial class FluXisGameBase : osu.Framework.Game
         AddFont(Resources, "Fonts/Noto/Noto-CJK-Basic");
         AddFont(Resources, "Fonts/Noto/Noto-CJK-Compatibility");
         AddFont(Resources, "Fonts/Noto/Noto-Thai");
+
+        AddFont(Resources, "Fonts/FontAwesome6/FontAwesome6-Solid");
+        AddFont(Resources, "Fonts/FontAwesome6/FontAwesome6-Regular");
+        AddFont(Resources, "Fonts/FontAwesome6/FontAwesome6-Brands");
     }
 
     public new virtual void Exit()
@@ -298,7 +335,7 @@ public partial class FluXisGameBase : osu.Framework.Game
             exceptionCount++;
             Task.Delay(1000).ContinueWith(_ => exceptionCount--);
 
-            NotificationManager.SendError("An unhandled error occurred!", e.Message, FontAwesome.Solid.Bomb);
+            NotificationManager.SendError("An unhandled error occurred!", e.Message, FontAwesome6.Solid.Bomb);
             return exceptionCount <= MaxExceptions;
         };
     }
@@ -313,15 +350,11 @@ public partial class FluXisGameBase : osu.Framework.Game
     {
         if (ScreenStack.CurrentScreen is SkinEditor)
         {
-            NotificationManager.SendText("You are already in the Skin editor.", "", FontAwesome.Solid.Bomb);
+            NotificationManager.SendText("You are already in the Skin editor.", "", FontAwesome6.Solid.Bomb);
             return;
         }
 
-        if (skinManager.IsDefault)
-        {
-            NotificationManager.SendError("You can't edit Default skins.");
-            return;
-        }
+        if (skinManager.IsDefault) return;
 
         Settings.Hide();
         ScreenStack.Push(new SkinEditor());
@@ -354,7 +387,12 @@ public partial class FluXisGameBase : osu.Framework.Game
     {
         MapStore.CurrentMapSet = set;
         var map = set.Maps.First();
-        BackgroundStack.AddBackgroundFromMap(map);
+        GlobalBackground.AddBackgroundFromMap(map);
+    }
+
+    public virtual void PresentScore(RealmMap map, ScoreInfo score, APIUserShort player)
+    {
+        Logger.Log($"{nameof(PresentScore)} is not implemented. I hope we are just running in a testing environment.", LoggingTarget.Runtime, LogLevel.Error);
     }
 
     protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent) => dependencies = new DependencyContainer(base.CreateChildDependencies(parent));

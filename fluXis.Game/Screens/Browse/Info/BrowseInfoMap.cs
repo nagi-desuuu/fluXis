@@ -8,13 +8,14 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 using osuTK;
 
 namespace fluXis.Game.Screens.Browse.Info;
 
 public partial class BrowseInfoMap : Container, IHasTextTooltip
 {
-    public string Tooltip => map.Difficulty;
+    public LocalisableString Tooltip => map.Difficulty;
 
     private bool mapperIsCreator => map.Mapper.ID == set.Creator.ID;
 
@@ -57,17 +58,15 @@ public partial class BrowseInfoMap : Container, IHasTextTooltip
                 Padding = new MarginPadding { Left = 60, Right = 110 },
                 Children = new Drawable[]
                 {
-                    new FluXisSpriteText
+                    new TruncatingText
                     {
                         RelativeSizeAxes = Axes.X,
-                        Truncate = true,
                         Text = map.Difficulty,
                         FontSize = mapperIsCreator ? 24 : 20,
                     },
-                    new FluXisSpriteText
+                    new TruncatingText
                     {
                         RelativeSizeAxes = Axes.X,
-                        Truncate = true,
                         Text = $"mapped by {map.Mapper.Username}",
                         FontSize = 14,
                         Alpha = mapperIsCreator ? 0 : 1,

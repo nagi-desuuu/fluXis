@@ -1,12 +1,20 @@
+using System;
+using System.Linq;
+using fluXis.Game.Database;
+using fluXis.Game.Database.Maps;
+using fluXis.Game.Database.Score;
 using fluXis.Game.Graphics;
+using fluXis.Game.Graphics.Sprites;
+using fluXis.Game.Graphics.UserInterface.Buttons;
 using fluXis.Game.Graphics.UserInterface.Color;
+using fluXis.Game.Graphics.UserInterface.Panel;
 using fluXis.Game.Map;
 using fluXis.Game.Overlay.Settings;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osuTK;
 
@@ -16,13 +24,25 @@ public partial class FooterOptions : FocusedOverlayContainer
 {
     protected override bool StartHidden => true;
     public SelectFooterButton Button { get; set; }
-    public SelectFooter Footer { get; init; }
+
+    public Action<RealmMapSet> DeleteAction { get; init; }
+    public Action<RealmMap> EditAction { get; init; }
+    public Action ScoresWiped { get; init; }
 
     [Resolved]
     private SettingsMenu settings { get; set; }
 
     [Resolved]
     private MapStore maps { get; set; }
+
+    [Resolved]
+    private FluXisRealm realm { get; set; }
+
+    [Resolved]
+    private FluXisGameBase game { get; set; }
+
+    private FooterOptionSection setSection;
+    private FooterOptionSection mapSection;
 
     [BackgroundDependencyLoader]
     private void load()
@@ -78,35 +98,87 @@ public partial class FooterOptions : FocusedOverlayContainer
                         Padding = new MarginPadding(10),
                         Children = new Drawable[]
                         {
-                            new FooterOptionButton
+                            setSection = new FooterOptionSection
                             {
-                                Text = "Edit Map",
-                                Icon = FontAwesome.Solid.Pen,
-                                Action = () =>
-                                {
-                                    Footer.Screen.EditMapSet(maps.CurrentMap);
-                                    State.Value = Visibility.Hidden;
-                                }
+                                Title = "General"
                             },
                             new FooterOptionButton
                             {
                                 Text = "Game Settings",
-                                Icon = FontAwesome.Solid.Cog,
+                                Icon = FontAwesome6.Solid.Gear,
                                 Action = () =>
                                 {
                                     settings.Show();
                                     State.Value = Visibility.Hidden;
                                 }
                             },
+                            setSection = new FooterOptionSection
+                            {
+                                Title = "For all difficulties"
+                            },
                             new FooterOptionButton
                             {
                                 Text = "Delete MapSet",
-                                Icon = FontAwesome.Solid.Trash,
+                                Icon = FontAwesome6.Solid.Trash,
                                 Color = FluXisColors.Red,
                                 Action = () =>
                                 {
-                                    Footer.Screen.OpenDeleteConfirm(maps.CurrentMapSet);
+                                    DeleteAction?.Invoke(maps.CurrentMapSet);
                                     State.Value = Visibility.Hidden;
+                                }
+                            },
+                            mapSection = new FooterOptionSection
+                            {
+                                Title = "For this difficulty"
+                            },
+                            new FooterOptionButton
+                            {
+                                Text = "Edit Map",
+                                Icon = FontAwesome6.Solid.Pen,
+                                Action = () =>
+                                {
+                                    EditAction?.Invoke(maps.CurrentMap);
+                                    State.Value = Visibility.Hidden;
+                                }
+                            },
+                            new FooterOptionButton
+                            {
+                                Text = "Wipe local scores",
+                                Icon = FontAwesome6.Solid.Eraser,
+                                Color = FluXisColors.Red,
+                                Action = () =>
+                                {
+                                    State.Value = Visibility.Hidden;
+
+                                    game.Overlay = new ButtonPanel
+                                    {
+                                        Text = "Are you sure you want to wipe all local scores for this difficulty?",
+                                        SubText = "This action cannot be undone.",
+                                        ButtonWidth = 200,
+                                        Buttons = new ButtonData[]
+                                        {
+                                            new()
+                                            {
+                                                Text = "Yes, do it.",
+                                                Color = FluXisColors.ButtonRed,
+                                                HoldToConfirm = true,
+                                                Action = () =>
+                                                {
+                                                    realm.RunWrite(r =>
+                                                    {
+                                                        var scores = r.All<RealmScore>().Where(s => s.MapID == maps.CurrentMap.ID);
+                                                        r.RemoveRange(scores);
+                                                    });
+
+                                                    ScoresWiped?.Invoke();
+                                                }
+                                            },
+                                            new()
+                                            {
+                                                Text = "No, nevermind."
+                                            }
+                                        }
+                                    };
                                 }
                             }
                         }
@@ -116,12 +188,34 @@ public partial class FooterOptions : FocusedOverlayContainer
         };
     }
 
+    protected override void LoadComplete()
+    {
+        base.LoadComplete();
+
+        maps.MapBindable.BindValueChanged(mapChanged, true);
+    }
+
+    private void mapChanged(ValueChangedEvent<RealmMap> e)
+    {
+        var map = e.NewValue;
+
+        setSection.SubTitle = $"{map.Metadata.Artist} - {map.Metadata.Title}";
+        mapSection.SubTitle = map.Difficulty;
+    }
+
     protected override void Update()
     {
         base.Update();
 
         var delta = Button.ScreenSpaceDrawQuad.Centre.X - ScreenSpaceDrawQuad.Centre.X;
         X += delta;
+    }
+
+    protected override void Dispose(bool isDisposing)
+    {
+        base.Dispose(isDisposing);
+
+        maps.MapBindable.ValueChanged -= mapChanged;
     }
 
     protected override bool OnHover(HoverEvent e) => true;

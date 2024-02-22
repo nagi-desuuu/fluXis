@@ -6,6 +6,7 @@ using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.UserInterface;
 using osuTK;
@@ -17,9 +18,15 @@ public partial class FluXisTextBox : BasicTextBox
 {
     protected override Color4 SelectionColour => FluXisColors.Background6;
     protected override Color4 InputErrorColour => FluXisColors.ButtonRed;
+    protected override float LeftRightPadding => SidePadding;
 
+    public int SidePadding { get; set; } = 5;
+    public float TextContainerHeight { get; set; } = .75f;
     public bool IsPassword { get; set; }
-    public Action OnTextChanged;
+    public Action OnTextChanged { get; set; }
+    public Action OnCommitAction { get; set; }
+
+    private Container textContainer => TextContainer;
 
     public Colour4 BackgroundInactive
     {
@@ -51,11 +58,12 @@ public partial class FluXisTextBox : BasicTextBox
         BackgroundCommit = BorderColour = FluXisColors.Highlight;
         Placeholder.Font = FluXisSpriteText.GetFont();
         Placeholder.Colour = FluXisColors.Foreground;
+        TextContainer.Height = TextContainerHeight;
 
         Add(samples);
     }
 
-    protected override Caret CreateCaret() => new FluXisCaret { SelectionColour = SelectionColour };
+    protected override Caret CreateCaret() => new FluXisCaret(this) { SelectionColour = SelectionColour };
 
     protected override void OnUserTextAdded(string added)
     {
@@ -69,7 +77,11 @@ public partial class FluXisTextBox : BasicTextBox
         OnTextChanged?.Invoke();
     }
 
-    protected override void OnTextCommitted(bool textChanged) => samples.Accept();
+    protected override void OnTextCommitted(bool textChanged)
+    {
+        samples.Accept();
+        OnCommitAction?.Invoke();
+    }
 
     private double lastSelectionTime;
 
@@ -114,9 +126,9 @@ public partial class FluXisTextBox : BasicTextBox
 
         if (IsPassword)
         {
-            container.Height = CalculatedTextSize;
-            container.Width = CalculatedTextSize / 2;
-            container.Child = new PasswordCharacter(CalculatedTextSize);
+            container.Height = FontSize;
+            container.Width = FontSize / 2;
+            container.Child = new PasswordCharacter(FontSize);
         }
         else
         {
@@ -124,7 +136,7 @@ public partial class FluXisTextBox : BasicTextBox
             container.Child = new FluXisSpriteText
             {
                 Text = c.ToString(),
-                FontSize = CalculatedTextSize
+                FontSize = FontSize
             };
         }
 
@@ -155,9 +167,12 @@ public partial class FluXisTextBox : BasicTextBox
 
         private bool shouldPulse = true;
 
-        public FluXisCaret()
+        private FluXisTextBox box { get; }
+
+        public FluXisCaret(FluXisTextBox box)
         {
-            RelativeSizeAxes = Axes.Y;
+            this.box = box;
+
             Size = new Vector2(4, 0.8f);
             Anchor = Anchor.CentreLeft;
             Origin = Anchor.CentreLeft;
@@ -173,6 +188,9 @@ public partial class FluXisTextBox : BasicTextBox
 
         protected override void LoadComplete()
         {
+            // this sucks
+            RelativeSizeAxes = box.FontSize != box.textContainer.DrawHeight ? Axes.None : Axes.Y;
+
             base.LoadComplete();
 
             clock.OnBeat += onBeat;

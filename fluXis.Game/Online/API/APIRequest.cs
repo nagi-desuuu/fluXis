@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using osu.Framework.IO.Network;
@@ -10,6 +11,10 @@ public class APIRequest<T> where T : class
 {
     protected virtual string Path => string.Empty;
     protected virtual HttpMethod Method => HttpMethod.Get;
+    protected virtual string RootUrl => Config.APIUrl;
+
+    protected APIEndpointConfig Config => fluxel.Endpoint;
+    private Fluxel.Fluxel fluxel;
 
     public event Action<APIResponse<T>> Success;
     public event Action<Exception> Failure;
@@ -17,14 +22,13 @@ public class APIRequest<T> where T : class
 
     public APIResponse<T> Response { get; protected set; }
 
-    private Fluxel.Fluxel fluxel;
-    private APIEndpointConfig config => fluxel.Endpoint;
-
     public virtual void Perform(Fluxel.Fluxel fluxel)
     {
         this.fluxel = fluxel;
 
-        var request = new JsonWebRequest<APIResponse<T>>($"{config.APIUrl}{Path}");
+        Logger.Log($"Performing API request {GetType().Name.Split('.').Last()}...", LoggingTarget.Network);
+
+        var request = new JsonWebRequest<APIResponse<T>>($"{RootUrl}{Path}");
         request.Method = Method;
         request.AllowInsecureRequests = true;
         request.UploadProgress += (current, total) => Progress?.Invoke(current, total);
@@ -36,12 +40,11 @@ public class APIRequest<T> where T : class
         {
             CreatePostData(request);
             request.Perform();
-            Logger.Log($"API request performed: {request.GetResponseString()}", LoggingTarget.Network);
             TriggerSuccess(request.ResponseObject);
         }
         catch (Exception e)
         {
-            Logger.Error(e, $"API request failed: {e.Message}", LoggingTarget.Network);
+            Logger.Error(e, $"API request {GetType().Name.Split('.').Last()} failed!");
             Response = new APIResponse<T>(400, e.Message, null);
             Failure?.Invoke(e);
         }

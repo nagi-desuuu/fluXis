@@ -1,9 +1,8 @@
 using fluXis.Game.Graphics;
-using fluXis.Game.Graphics.Background;
 using fluXis.Game.Graphics.Containers;
-using fluXis.Game.Graphics.Cover;
 using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
+using fluXis.Game.Map.Drawables;
 using fluXis.Game.Screens.Edit.Tabs.Metadata;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
@@ -19,9 +18,9 @@ public partial class SetupTab : EditorTab
     private EditorValues values { get; set; }
 
     private MapBackground background;
-    private DrawableCover cover;
-    private FluXisSpriteText titleText;
-    private FluXisSpriteText artistText;
+    private MapCover cover;
+    private TruncatingText titleText;
+    private TruncatingText artistText;
 
     public SetupTab(Editor screen)
         : base(screen)
@@ -71,13 +70,12 @@ public partial class SetupTab : EditorTab
                         Masking = true,
                         Children = new Drawable[]
                         {
-                            background = new MapBackground
+                            background = new MapBackground(Screen.Map)
                             {
                                 RelativeSizeAxes = Axes.Both,
                                 Anchor = Anchor.Centre,
                                 Origin = Anchor.Centre,
-                                FillMode = FillMode.Fill,
-                                Map = Screen.Map
+                                FillMode = FillMode.Fill
                             },
                             new Box
                             {
@@ -100,7 +98,7 @@ public partial class SetupTab : EditorTab
                                         CornerRadius = 20,
                                         Masking = true,
                                         EdgeEffect = FluXisStyles.ShadowMedium,
-                                        Child = cover = new DrawableCover(Screen.Map.MapSet)
+                                        Child = cover = new MapCover(Screen.Map.MapSet)
                                         {
                                             RelativeSizeAxes = Axes.Both,
                                             Anchor = Anchor.Centre,
@@ -117,19 +115,17 @@ public partial class SetupTab : EditorTab
                                         Padding = new MarginPadding { Left = 170 },
                                         Children = new Drawable[]
                                         {
-                                            titleText = new FluXisSpriteText
+                                            titleText = new TruncatingText
                                             {
                                                 Text = Screen.Map.Metadata.Title,
                                                 RelativeSizeAxes = Axes.X,
-                                                Truncate = true,
                                                 FontSize = 38,
                                                 Shadow = true
                                             },
-                                            artistText = new FluXisSpriteText
+                                            artistText = new TruncatingText
                                             {
                                                 Text = Screen.Map.Metadata.Artist,
                                                 RelativeSizeAxes = Axes.X,
-                                                Truncate = true,
                                                 FontSize = 24,
                                                 Shadow = true
                                             }

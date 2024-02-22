@@ -11,15 +11,11 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Video;
 using osu.Framework.Logging;
-using osu.Framework.Platform;
 
 namespace fluXis.Game.Graphics.Background;
 
 public partial class BackgroundVideo : CompositeDrawable
 {
-    [Resolved]
-    private Storage storage { get; set; }
-
     public bool ShowDim { get; init; } = true;
 
     public RealmMap Map { get; set; }
@@ -69,7 +65,7 @@ public partial class BackgroundVideo : CompositeDrawable
 
     public void LoadVideo()
     {
-        if (string.IsNullOrWhiteSpace(Info.VideoFile))
+        if (string.IsNullOrWhiteSpace(Info?.VideoFile))
         {
             Schedule(() =>
             {

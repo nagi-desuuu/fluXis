@@ -1,35 +1,38 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using fluXis.Game.Audio;
 using fluXis.Game.Configuration;
-using fluXis.Game.Graphics.Containers;
+using fluXis.Game.Database.Maps;
+using fluXis.Game.Graphics.UserInterface.Panel;
 using fluXis.Game.Input;
 using fluXis.Game.Localization;
 using fluXis.Game.Localization.Stores;
 using fluXis.Game.Online.API.Models.Other;
+using fluXis.Game.Online.API.Models.Users;
 using fluXis.Game.Online.Fluxel;
+using fluXis.Game.Overlay.Achievements;
 using fluXis.Game.Overlay.Exit;
 using fluXis.Game.Overlay.FPS;
 using fluXis.Game.Overlay.Notifications;
+using fluXis.Game.Overlay.Notifications.Tasks;
 using fluXis.Game.Overlay.Notifications.Types.Image;
 using fluXis.Game.Overlay.Volume;
+using fluXis.Game.Scoring;
 using fluXis.Game.Screens;
 using fluXis.Game.Screens.Menu;
+using fluXis.Game.Screens.Result;
 using fluXis.Game.Screens.Warning;
 using fluXis.Game.Utils;
 using JetBrains.Annotations;
-using Newtonsoft.Json;
 using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Cursor;
-using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.IO.Stores;
 using osu.Framework.Localisation;
-using osuTK;
 
 namespace fluXis.Game;
 
@@ -41,20 +44,17 @@ public partial class FluXisGame : FluXisGameBase, IKeyBindingHandler<FluXisGloba
 
     private Container screenContainer;
     private ExitAnimation exitAnimation;
-    private Container overlayDim;
-    private Container overlayContainer;
+    private PanelContainer panelContainer;
 
     private FloatingNotificationContainer notificationContainer;
     private BufferedContainer buffer;
 
+    private readonly BindableDouble inactiveVolume = new(1f);
+
     public override Drawable Overlay
     {
-        get => overlayContainer.Count == 0 ? null : overlayContainer[0];
-        set
-        {
-            overlayContainer.Clear();
-            if (value != null) overlayContainer.Add(value);
-        }
+        get => panelContainer.Content;
+        set => panelContainer.Content = value;
     }
 
     [UsedImplicitly]
@@ -75,7 +75,7 @@ public partial class FluXisGame : FluXisGameBase, IKeyBindingHandler<FluXisGloba
                 RedrawOnScale = false,
                 Children = new Drawable[]
                 {
-                    BackgroundStack,
+                    GlobalBackground,
                     screenContainer = new Container
                     {
                         RelativeSizeAxes = Axes.Both,
@@ -95,34 +95,22 @@ public partial class FluXisGame : FluXisGameBase, IKeyBindingHandler<FluXisGloba
                     Toolbar
                 }
             },
-            new PopoverContainer
-            {
-                RelativeSizeAxes = Axes.Both,
-                Children = new Drawable[]
-                {
-                    overlayDim = new FullInputBlockingContainer
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Alpha = 0,
-                        Child = new Box
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Colour = Colour4.Black,
-                            Alpha = .5f
-                        }
-                    },
-                    overlayContainer = new Container
-                    {
-                        RelativeSizeAxes = Axes.Both
-                    }
-                }
-            },
+            panelContainer = new PanelContainer { BlurContainer = buffer },
             new VolumeOverlay(),
             NotificationManager.Floating = notificationContainer = new FloatingNotificationContainer(),
+            NotificationManager.Tasks = new TaskNotificationContainer(),
             new FpsOverlay(),
             CursorOverlay,
             exitAnimation = new ExitAnimation()
         };
+
+        Audio.AddAdjustment(AdjustableProperty.Volume, inactiveVolume);
+
+        IsActive.BindValueChanged(active =>
+        {
+            var volume = Config.Get<double>(FluXisSetting.InactiveVolume);
+            this.TransformBindableTo(inactiveVolume, active.NewValue ? 1 : volume, 1000, Easing.OutQuint);
+        }, true);
     }
 
     protected override void LoadComplete()
@@ -135,6 +123,12 @@ public partial class FluXisGame : FluXisGameBase, IKeyBindingHandler<FluXisGloba
         ScreenStack.Push(new WarningScreen());
         MenuScreen = new MenuScreen();
         LoadComponent(MenuScreen);
+
+        Fluxel.RegisterListener<Achievement>(EventType.Achievement, res =>
+        {
+            var achievement = res.Data;
+            Schedule(() => panelContainer.Content = new AchievementOverlay(achievement));
+        });
 
         Fluxel.RegisterListener<ServerMessage>(EventType.ServerMessage, res =>
         {
@@ -177,9 +171,16 @@ public partial class FluXisGame : FluXisGameBase, IKeyBindingHandler<FluXisGloba
                 background = $"{Fluxel.Endpoint.AssetUrl}/background/{song.OnlineID}",
             };
 
-            var json = JsonConvert.SerializeObject(data);
-            File.WriteAllText($"{Host.Storage.GetFullPath("nowplaying.json")}", json);
+            File.WriteAllText($"{Host.Storage.GetFullPath("nowplaying.json")}", data.Serialize());
         });
+    }
+
+    public override void PresentScore(RealmMap map, ScoreInfo score, APIUserShort player)
+    {
+        if (map == null || score == null)
+            throw new ArgumentNullException();
+
+        ScreenStack.Push(new SoloResults(map, score, player));
     }
 
     public bool OnPressed(KeyBindingPressEvent<FluXisGlobalKeybind> e)
@@ -221,28 +222,6 @@ public partial class FluXisGame : FluXisGameBase, IKeyBindingHandler<FluXisGloba
     {
         screenContainer.Padding = new MarginPadding { Top = Toolbar.Height + Toolbar.Y };
         notificationContainer.Y = Toolbar.Height + Toolbar.Y;
-
-        if (Overlay is { IsLoaded: true, IsPresent: false } && !Overlay.Transforms.Any())
-        {
-            Schedule(() => overlayContainer.Remove(Overlay, false));
-            overlayDim.Alpha = 0;
-            buffer.BlurSigma = Vector2.Zero;
-            GlobalClock.LowPassFilter.Cutoff = LowPassFilter.MAX;
-        }
-        else if (Overlay is { IsLoaded: true })
-        {
-            overlayDim.Alpha = Overlay.Alpha;
-            buffer.BlurSigma = new Vector2(Overlay.Alpha * 4);
-
-            var lowpass = (LowPassFilter.MAX - LowPassFilter.MIN) * Overlay.Alpha;
-            lowpass = LowPassFilter.MAX - lowpass;
-            GlobalClock.LowPassFilter.Cutoff = (int)lowpass;
-        }
-        else if (buffer.BlurSigma != Vector2.Zero || overlayDim.Alpha != 0)
-        {
-            overlayDim.Alpha = 0;
-            buffer.BlurSigma = new Vector2(0);
-        }
 
         if (GlobalClock.Finished && ScreenStack.CurrentScreen is FluXisScreen { AutoPlayNext: true })
             NextSong();

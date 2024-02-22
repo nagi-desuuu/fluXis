@@ -28,7 +28,7 @@ public class FluXisConfig : IniConfigManager<FluXisSetting>
         SetDefault(FluXisSetting.LaneCoverBottom, 0f, 0f, 1f, 0.01f);
         SetDefault(FluXisSetting.DimAndFade, true);
 
-        SetDefault(FluXisSetting.ScrollSpeed, 2f, 1f, 10f, 0.1f);
+        SetDefault(FluXisSetting.ScrollSpeed, 3f, 2f, 8f, 0.1f);
 
         SetDefault(FluXisSetting.Hitsounding, true);
         SetDefault(FluXisSetting.BackgroundVideo, true);
@@ -62,8 +62,12 @@ public class FluXisConfig : IniConfigManager<FluXisSetting>
         SetDefault(FluXisSetting.EditorBlur, 0f, 0f, 1f, 0.2f);
 
         // Audio
-        SetDefault(FluXisSetting.GlobalOffset, 0, -1000, 1000, 1);
+        SetDefault(FluXisSetting.InactiveVolume, 0.5d, 0d, 1d, 0.01d);
         SetDefault(FluXisSetting.HitSoundVolume, 1d, 0d, 1d, 0.01d);
+
+        // Audio // Offset
+        SetDefault(FluXisSetting.GlobalOffset, 0, -1000, 1000, 1);
+        SetDefault(FluXisSetting.DisableOffsetInReplay, true);
 
         // Graphics
         SetDefault(FluXisSetting.ShowFps, false);
@@ -72,6 +76,7 @@ public class FluXisConfig : IniConfigManager<FluXisSetting>
         SetDefault(FluXisSetting.Token, string.Empty);
 
         // Misc
+        SetDefault(FluXisSetting.ReleaseChannel, ReleaseChannel.Stable);
         SetDefault(FluXisSetting.NowPlaying, false);
     }
 }
@@ -127,8 +132,10 @@ public enum FluXisSetting
     EditorBlur,
 
     // Audio
+    InactiveVolume,
     HitSoundVolume,
     GlobalOffset,
+    DisableOffsetInReplay,
 
     // Graphics
     ShowFps,
@@ -137,5 +144,6 @@ public enum FluXisSetting
     Token,
 
     // Misc
-    NowPlaying, // saves the current song to a json file
+    ReleaseChannel,
+    NowPlaying // saves the current song to a json file
 }

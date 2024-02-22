@@ -1,4 +1,5 @@
 using fluXis.Game.Graphics.Drawables;
+using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface;
 using fluXis.Game.Graphics.UserInterface.Files;
 using fluXis.Game.Online;
@@ -7,7 +8,7 @@ using fluXis.Game.Online.API.Requests.Account;
 using fluXis.Game.Online.Fluxel;
 using fluXis.Game.Overlay.Network.Tabs.Account;
 using fluXis.Game.Overlay.Notifications;
-using fluXis.Game.Overlay.Notifications.Types.Loading;
+using fluXis.Game.Overlay.Notifications.Tasks;
 using fluXis.Game.Utils;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
@@ -21,7 +22,7 @@ namespace fluXis.Game.Overlay.Network.Tabs;
 public partial class DashboardAccountTab : DashboardTab
 {
     public override string Title => "Account";
-    public override IconUsage Icon => FontAwesome.Solid.Cog;
+    public override IconUsage Icon => FontAwesome6.Solid.Gear;
 
     [Resolved]
     private Fluxel fluxel { get; set; }
@@ -109,14 +110,13 @@ public partial class DashboardAccountTab : DashboardTab
                                 {
                                     OnFileSelected = file =>
                                     {
-                                        var notif = new LoadingNotificationData
+                                        var notif = new TaskNotificationData()
                                         {
-                                            TextLoading = "Uploading avatar...",
-                                            TextSuccess = "Avatar uploaded!",
-                                            TextFailure = "Failed to upload avatar!"
+                                            Text = "Avatar Update",
+                                            TextWorking = "Uploading..."
                                         };
 
-                                        notifications.Add(notif);
+                                        notifications.AddTask(notif);
 
                                         var req = new AvatarUploadRequest(file);
                                         req.Progress += (cur, max) => notif.Progress = cur / (float)max;
@@ -156,14 +156,13 @@ public partial class DashboardAccountTab : DashboardTab
                                 {
                                     OnFileSelected = file =>
                                     {
-                                        var notif = new LoadingNotificationData
+                                        var notif = new TaskNotificationData()
                                         {
-                                            TextLoading = "Uploading banner...",
-                                            TextSuccess = "Banner uploaded!",
-                                            TextFailure = "Failed to upload banner!"
+                                            Text = "Banner Update",
+                                            TextWorking = "Uploading..."
                                         };
 
-                                        notifications.Add(notif);
+                                        notifications.AddTask(notif);
 
                                         var req = new BannerUploadRequest(file);
                                         req.Progress += (cur, max) => notif.Progress = cur / (float)max;

@@ -1,5 +1,6 @@
+using System;
 using System.IO;
-using Newtonsoft.Json;
+using fluXis.Game.Utils;
 using osu.Framework.IO.Network;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
@@ -9,7 +10,7 @@ namespace fluXis.Game.Screens.Menu;
 
 public static class MenuSplashes
 {
-    private const string splash_file = "cache/splashes.json";
+    private const string splash_file = "splashes.json";
     private const string online_path = "https://assets.flux.moe/splashes.json";
 
     private static string[] splashes =
@@ -39,23 +40,20 @@ public static class MenuSplashes
     {
         try
         {
-            if (storage.Exists("splashes.json"))
-                storage.Move("splashes.json", splash_file);
+            if (!storage.Exists(splash_file))
+                return;
 
-            if (!storage.Exists(splash_file)) return;
-
-            Logger.Log("Loading splashes from local storage");
+            Logger.Log("Loading splashes from local storage...", LoggingTarget.Runtime, LogLevel.Debug);
 
             var stream = storage.GetStream(splash_file);
             using var sr = new StreamReader(stream);
-            var json = sr.ReadToEnd();
-            splashes = JsonConvert.DeserializeObject<string[]>(json);
+            splashes = sr.ReadToEnd().Deserialize<string[]>();
 
-            Logger.Log("Splashes loaded from local storage");
+            Logger.Log("Splashes loaded from local storage!", LoggingTarget.Runtime, LogLevel.Debug);
         }
-        catch
+        catch (Exception e)
         {
-            Logger.Log("Failed to load splashes from local storage");
+            Logger.Error(e, "Failed to load splashes from local storage!");
         }
     }
 
@@ -63,22 +61,22 @@ public static class MenuSplashes
     {
         try
         {
-            Logger.Log("Downloading splashes from web", LoggingTarget.Network);
+            Logger.Log("Downloading splashes from web...", LoggingTarget.Network, LogLevel.Debug);
             var req = new WebRequest(online_path);
             await req.PerformAsync();
             var json = req.GetResponseString();
-            splashes = JsonConvert.DeserializeObject<string[]>(json);
+            splashes = json.Deserialize<string[]>();
 
-            Logger.Log("Saving splashes to local storage", LoggingTarget.Network);
+            Logger.Log("Saving splashes to local storage...", LoggingTarget.Network, LogLevel.Debug);
 
             var path = storage.GetFullPath(splash_file);
             await File.WriteAllTextAsync(path, json);
 
-            Logger.Log("Splashes saved to local storage", LoggingTarget.Network);
+            Logger.Log("Splashes saved to local storage!", LoggingTarget.Network, LogLevel.Debug);
         }
-        catch
+        catch (Exception e)
         {
-            Logger.Log("Failed to download splashes from web", LoggingTarget.Network);
+            Logger.Error(e, "Failed to download splashes from web!", LoggingTarget.Network);
         }
     }
 }

@@ -26,7 +26,7 @@ public partial class ModSelector : Container
 
     private readonly Dictionary<IMod, ModEntry> mappings = new();
 
-    public List<IMod> SelectedMods { get; } = new();
+    public BindableList<IMod> SelectedMods { get; } = new();
     public ModSelectRate RateMod { get; private set; }
 
     private ClickableContainer background;
@@ -221,8 +221,7 @@ public partial class ModSelector : Container
                                                                         Selector = this,
                                                                         Mods = new IMod[]
                                                                         {
-                                                                            new AutoPlayMod(),
-                                                                            new AutoPlayV2Mod()
+                                                                            new AutoPlayMod()
                                                                         }
                                                                     }
                                                                 }
@@ -242,6 +241,13 @@ public partial class ModSelector : Container
         };
 
         IsOpen.BindValueChanged(_ => updateVisibility());
+    }
+
+    protected override void LoadComplete()
+    {
+        base.LoadComplete();
+
+        SelectedMods.BindCollectionChanged((_, __) => UpdateTotalMultiplier(), true);
     }
 
     public void AddMapping(IMod mod, ModEntry entry)
@@ -269,14 +275,12 @@ public partial class ModSelector : Container
 
         sampleSelect?.Play();
         SelectedMods.Add(mod);
-        UpdateTotalMultiplier();
     }
 
     public void Deselect(IMod mod)
     {
         sampleDeselect?.Play();
         SelectedMods.Remove(mod);
-        UpdateTotalMultiplier();
     }
 
     public void UpdateTotalMultiplier() => this.TransformTo(nameof(scoreMultiplier), 1f + SelectedMods.Sum(mod => mod.ScoreMultiplier - 1f), 400, Easing.OutQuint);

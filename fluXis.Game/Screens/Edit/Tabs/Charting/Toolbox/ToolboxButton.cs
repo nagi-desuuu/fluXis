@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 using osuTK;
 
 namespace fluXis.Game.Screens.Edit.Tabs.Charting.Toolbox;
@@ -23,10 +24,11 @@ public partial class ToolboxButton : Container, IHasTextTooltip
     public BlueprintContainer BlueprintContainer => ChartingContainer.BlueprintContainer;
 
     public ChartingTool Tool { get; init; }
-    public virtual string Tooltip => Tool.Description;
+    public virtual LocalisableString Tooltip => Tool.Description;
 
-    public virtual string Text => Tool.Name;
-    public virtual bool IsSelected => BlueprintContainer.CurrentTool == Tool;
+    protected virtual string Text => Tool.Name;
+    protected virtual bool IsSelected => BlueprintContainer.CurrentTool == Tool;
+    protected virtual bool PlayClickSound => true;
 
     [Resolved]
     private UISamples samples { get; set; }
@@ -86,7 +88,7 @@ public partial class ToolboxButton : Container, IHasTextTooltip
                                     RelativeSizeAxes = Axes.Both,
                                     Anchor = Anchor.Centre,
                                     Origin = Anchor.Centre,
-                                    Icon = FontAwesome.Regular.QuestionCircle
+                                    Icon = FontAwesome6.Solid.Question
                                 }
                             },
                             new FluXisSpriteText
@@ -157,7 +159,10 @@ public partial class ToolboxButton : Container, IHasTextTooltip
     protected override bool OnClick(ClickEvent e)
     {
         flash.FadeOutFromOne(400);
-        samples.Click();
+
+        if (PlayClickSound)
+            samples.Click();
+
         Select();
         return true;
     }

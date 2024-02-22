@@ -4,9 +4,16 @@ namespace fluXis.Game.Online;
 
 public class APIEndpointConfig
 {
+    [JsonProperty("api")]
     public string APIUrl { get; private set; }
+
+    [JsonProperty("assets")]
     public string AssetUrl { get; private set; }
+
+    [JsonProperty("websocket")]
     public string WebsocketUrl { get; private set; }
+
+    [JsonProperty("website")]
     public string WebsiteRootUrl { get; private set; }
 
     public APIEndpointConfig AddDefaults()
@@ -22,6 +29,4 @@ public class APIEndpointConfig
 
         return this;
     }
-
-    public override string ToString() => JsonConvert.SerializeObject(this, Formatting.Indented);
 }

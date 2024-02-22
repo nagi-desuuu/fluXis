@@ -5,6 +5,7 @@ using fluXis.Game.Graphics.Containers;
 using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
 using fluXis.Game.Graphics.UserInterface.Menu;
+using fluXis.Game.Graphics.UserInterface.Text;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
@@ -20,7 +21,19 @@ namespace fluXis.Game.Overlay.Settings.UI;
 public partial class SettingsDropdown<T> : SettingsItem
 {
     private IEnumerable<T> items = Enumerable.Empty<T>();
-    public Bindable<T> Bindable { get; set; }
+    private Bindable<T> bindable = new();
+
+    public Bindable<T> Bindable
+    {
+        get => bindable;
+        set
+        {
+            bindable = value;
+
+            if (menu != null)
+                menu.Current = bindable;
+        }
+    }
 
     public IEnumerable<T> Items
     {
@@ -29,13 +42,14 @@ public partial class SettingsDropdown<T> : SettingsItem
         {
             items = value;
 
-            if (menu != null) menu.Items = items;
+            if (menu != null)
+                menu.Items = items;
         }
     }
 
-    public override bool IsDefault => Bindable.IsDefault;
+    protected override bool IsDefault => Bindable.IsDefault;
 
-    private SettingsDropdownMenu menu;
+    private Dropdown<T> menu;
 
     [BackgroundDependencyLoader]
     private void load()
@@ -44,16 +58,18 @@ public partial class SettingsDropdown<T> : SettingsItem
         Content.RelativeSizeAxes = Axes.X;
         Content.AutoSizeAxes = Axes.Y;
 
-        Add(menu = new SettingsDropdownMenu
+        Add(menu = CreateMenu().With(m =>
         {
-            Items = Items,
-            Current = Bindable
-        });
+            m.Items = Items;
+            m.Current = Bindable;
+        }));
     }
+
+    protected virtual Dropdown<T> CreateMenu() => new SettingsDropdownMenu();
 
     protected override void Reset() => Bindable.SetDefault();
 
-    private partial class SettingsDropdownMenu : Dropdown<T>
+    protected partial class SettingsDropdownMenu : Dropdown<T>
     {
         [BackgroundDependencyLoader]
         private void load()
@@ -92,7 +108,7 @@ public partial class SettingsDropdown<T> : SettingsItem
                     },
                     new SpriteIcon
                     {
-                        Icon = FontAwesome.Solid.ChevronDown,
+                        Icon = FontAwesome6.Solid.ChevronDown,
                         Anchor = Anchor.CentreRight,
                         Origin = Anchor.CentreRight,
                         Size = new Vector2(14),
@@ -101,11 +117,29 @@ public partial class SettingsDropdown<T> : SettingsItem
                 };
             }
 
+            protected override DropdownSearchBar CreateSearchBar() => new SettingsDropdownSearchBar();
+
             protected override bool OnHover(HoverEvent e)
             {
                 base.OnHover(e);
                 return true;
             }
+        }
+
+        private partial class SettingsDropdownSearchBar : DropdownSearchBar
+        {
+            protected override TextBox CreateTextBox()
+            {
+                return new FluXisTextBox
+                {
+                    RelativeSizeAxes = Axes.X,
+                    Height = 30,
+                    PlaceholderText = "Search"
+                };
+            }
+
+            protected override void PopIn() => this.FadeIn(200);
+            protected override void PopOut() => this.FadeOut(200);
         }
 
         private partial class FluXisDropdownMenu : DropdownMenu

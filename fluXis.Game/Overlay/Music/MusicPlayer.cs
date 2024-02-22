@@ -1,30 +1,29 @@
-using System.Linq;
 using System.Threading.Tasks;
 using fluXis.Game.Audio;
 using fluXis.Game.Database.Maps;
 using fluXis.Game.Graphics;
 using fluXis.Game.Graphics.Background;
 using fluXis.Game.Graphics.Containers;
-using fluXis.Game.Graphics.Cover;
 using fluXis.Game.Graphics.Sprites;
 using fluXis.Game.Graphics.UserInterface.Color;
 using fluXis.Game.Input;
 using fluXis.Game.Map;
+using fluXis.Game.Map.Drawables;
 using fluXis.Game.Screens;
+using fluXis.Game.Utils.Extensions;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osuTK;
 
 namespace fluXis.Game.Overlay.Music;
 
-public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXisGlobalKeybind>
+public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGlobalKeybind>
 {
     [Resolved]
     private GlobalClock globalClock { get; set; }
@@ -35,18 +34,15 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
     [Resolved]
     private MapStore maps { get; set; }
 
-    [Resolved]
-    private UISamples samples { get; set; }
-
     public FluXisScreenStack ScreenStack { get; set; }
 
     private const int inner_padding = 40;
     private const int rounding = 20;
 
     private Container content;
-    private Container backgrounds;
+    private SpriteStack<MapBackground> backgrounds;
     private BackgroundVideo video;
-    private Container covers;
+    private SpriteStack<MapCover> covers;
     private FluXisSpriteText title;
     private FluXisSpriteText artist;
     private MusicPlayerButton pausePlay;
@@ -94,12 +90,7 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
                             RelativeSizeAxes = Axes.Both,
                             Colour = FluXisColors.Background2
                         },
-                        backgrounds = new Container
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Anchor = Anchor.Centre,
-                            Origin = Anchor.Centre
-                        },
+                        backgrounds = new SpriteStack<MapBackground>(),
                         video = new BackgroundVideo
                         {
                             RelativeSizeAxes = Axes.Both,
@@ -146,7 +137,7 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
                                     Origin = Anchor.BottomLeft,
                                     Children = new Drawable[]
                                     {
-                                        covers = new Container
+                                        new Container
                                         {
                                             Size = new Vector2(150),
                                             Masking = true,
@@ -154,14 +145,7 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
                                             Anchor = Anchor.CentreLeft,
                                             Origin = Anchor.CentreLeft,
                                             EdgeEffect = FluXisStyles.ShadowMedium,
-                                            Children = new Drawable[]
-                                            {
-                                                new Box
-                                                {
-                                                    RelativeSizeAxes = Axes.Both,
-                                                    Colour = Colour4.Black
-                                                }
-                                            }
+                                            Child = covers = new SpriteStack<MapCover>()
                                         },
                                         new FillFlowContainer
                                         {
@@ -194,7 +178,7 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
                                                     {
                                                         new MusicPlayerButton
                                                         {
-                                                            Icon = FontAwesome.Solid.StepBackward,
+                                                            Icon = FontAwesome6.Solid.BackwardStep,
                                                             Action = () =>
                                                             {
                                                                 if (ScreenStack.AllowMusicControl)
@@ -203,7 +187,7 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
                                                         },
                                                         pausePlay = new MusicPlayerButton
                                                         {
-                                                            Icon = FontAwesome.Solid.Play,
+                                                            Icon = FontAwesome6.Solid.Play,
                                                             Action = () =>
                                                             {
                                                                 if (!ScreenStack.AllowMusicControl)
@@ -217,7 +201,7 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
                                                         },
                                                         new MusicPlayerButton
                                                         {
-                                                            Icon = FontAwesome.Solid.StepForward,
+                                                            Icon = FontAwesome6.Solid.ForwardStep,
                                                             Action = () =>
                                                             {
                                                                 if (ScreenStack.AllowMusicControl)
@@ -242,60 +226,53 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
     {
         base.LoadComplete();
 
-        maps.MapSetBindable.BindValueChanged(songChanged, true);
+        maps.MapBindable.BindValueChanged(mapChanged, true);
     }
 
     protected override void Dispose(bool isDisposing)
     {
         base.Dispose(isDisposing);
 
-        maps.MapSetBindable.ValueChanged -= songChanged;
+        maps.MapBindable.ValueChanged -= mapChanged;
     }
 
-    private void songChanged(ValueChangedEvent<RealmMapSet> e)
+    private void mapChanged(ValueChangedEvent<RealmMap> e) => Scheduler.ScheduleOnceIfNeeded(songChanged);
+
+    private void songChanged()
     {
-        Schedule(() =>
+        var next = maps.CurrentMap;
+
+        if (next == null) return;
+
+        video.Stop();
+
+        title.Text = next.Metadata.Title;
+        artist.Text = next.Metadata.Artist;
+
+        LoadComponentAsync(new MapBackground(next) { RelativeSizeAxes = Axes.Both }, background =>
         {
-            var next = e.NewValue;
+            background.FadeInFromZero(400);
+            backgrounds.Add(background, 400);
+        });
 
-            if (next == null) return;
+        LoadComponentAsync(new MapCover(next.MapSet)
+        {
+            RelativeSizeAxes = Axes.Both,
+            Anchor = Anchor.Centre,
+            Origin = Anchor.Centre
+        }, cover =>
+        {
+            cover.FadeInFromZero(400);
+            covers.Add(cover, 400);
+        });
 
-            video.Stop();
+        Task.Run(() =>
+        {
+            video.Map = next;
+            video.Info = next.GetMapInfo();
 
-            title.Text = next.Metadata.Title;
-            artist.Text = next.Metadata.Artist;
-
-            LoadComponentAsync(new MapBackground
-            {
-                Map = next.Maps.First(),
-                RelativeSizeAxes = Axes.Both,
-                FillMode = FillMode.Fill
-            }, background =>
-            {
-                backgrounds.Add(background);
-                background.FadeInFromZero(400);
-            });
-
-            LoadComponentAsync(new DrawableCover(next)
-            {
-                RelativeSizeAxes = Axes.Both,
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                FillMode = FillMode.Fill
-            }, cover =>
-            {
-                covers.Add(cover);
-                cover.FadeInFromZero(400);
-            });
-
-            Task.Run(() =>
-            {
-                video.Map = next.Maps.First();
-                video.Info = next.Maps.First().GetMapInfo();
-
-                video.LoadVideo();
-                ScheduleAfterChildren(video.Start);
-            });
+            video.LoadVideo();
+            ScheduleAfterChildren(video.Start);
         });
     }
 
@@ -303,27 +280,19 @@ public partial class MusicPlayer : VisibilityContainer, IKeyBindingHandler<FluXi
     {
         base.Update();
 
-        while (backgrounds.Count > 1 && backgrounds.Last().Alpha == 1)
-            backgrounds.Remove(backgrounds[0], true);
-
-        while (covers.Count > 1 && covers.Last().Alpha == 1)
-            covers.Remove(covers[0], true);
-
-        pausePlay.IconSprite.Icon = globalClock.IsRunning ? FontAwesome.Solid.Pause : FontAwesome.Solid.Play;
+        pausePlay.IconSprite.Icon = globalClock.IsRunning ? FontAwesome6.Solid.Pause : FontAwesome6.Solid.Play;
     }
 
     protected override void PopIn()
     {
         this.FadeIn(200);
         content.MoveToY(0, 400, Easing.OutQuint);
-        samples.Overlay(false);
     }
 
     protected override void PopOut()
     {
         this.FadeOut(200);
         content.MoveToY(-50, 400, Easing.OutQuint);
-        samples.Overlay(true);
     }
 
     public bool OnPressed(KeyBindingPressEvent<FluXisGlobalKeybind> e)

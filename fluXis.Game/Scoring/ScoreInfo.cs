@@ -40,13 +40,16 @@ public class ScoreInfo
     [JsonProperty("miss")]
     public int Miss { get; set; }
 
-    [JsonProperty("accuracy")]
+    [JsonProperty("results")]
     public List<HitResult> HitResults { get; set; }
 
     [JsonProperty("mapid")]
     public int MapID { get; set; }
 
-    [JsonProperty("maphash")]
+    [JsonProperty("player")]
+    public int PlayerID { get; set; }
+
+    [JsonProperty("hash")]
     public string MapHash { get; set; }
 
     [JsonProperty("mods")]

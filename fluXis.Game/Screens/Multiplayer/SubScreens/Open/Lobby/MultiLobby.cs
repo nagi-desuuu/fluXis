@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using fluXis.Game.Audio;
 using fluXis.Game.Graphics.Background;
@@ -6,12 +7,16 @@ using fluXis.Game.Graphics.UserInterface.Buttons;
 using fluXis.Game.Graphics.UserInterface.Color;
 using fluXis.Game.Graphics.UserInterface.Panel;
 using fluXis.Game.Map;
+using fluXis.Game.Mods;
 using fluXis.Game.Online.API.Models.Multi;
+using fluXis.Game.Online.API.Models.Users;
 using fluXis.Game.Online.Fluxel;
 using fluXis.Game.Online.Fluxel.Packets.Multiplayer;
+using fluXis.Game.Online.Multiplayer;
+using fluXis.Game.Screens.Gameplay;
+using fluXis.Game.Screens.Multiplayer.Gameplay;
 using fluXis.Game.Screens.Multiplayer.SubScreens.Open.Lobby.UI;
 using fluXis.Game.UI;
-using Newtonsoft.Json;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -31,7 +36,7 @@ public partial class MultiLobby : MultiSubScreen
     private MapStore mapStore { get; set; }
 
     [Resolved]
-    private BackgroundStack backgroundStack { get; set; }
+    private GlobalBackground backgrounds { get; set; }
 
     [Resolved]
     private GlobalClock clock { get; set; }
@@ -40,9 +45,17 @@ public partial class MultiLobby : MultiSubScreen
     private MultiplayerMenuMusic menuMusic { get; set; }
 
     [Resolved]
+    private MultiplayerScreen multiScreen { get; set; }
+
+    [Resolved]
     private Fluxel fluxel { get; set; }
 
+    [Resolved]
+    private MultiplayerClient client { get; set; }
+
     public MultiplayerRoom Room { get; set; }
+
+    private bool ready;
 
     private bool confirmExit;
 
@@ -52,6 +65,8 @@ public partial class MultiLobby : MultiSubScreen
     [BackgroundDependencyLoader]
     private void load()
     {
+        client.Room = Room;
+
         InternalChildren = new Drawable[]
         {
             new FillFlowContainer
@@ -113,84 +128,60 @@ public partial class MultiLobby : MultiSubScreen
             {
                 Corner = Corner.BottomRight,
                 ButtonText = "Ready",
-                Action = () =>
-                {
-                    ready = !ready;
-                    fluxel.SendPacketAsync(new MultiplayerReadyPacket(ready));
-                    readyButton.ButtonText = ready ? "Unready" : "Ready";
-                }
+                Action = toggleReadyState
             }
         };
     }
 
-    private bool ready;
+    private void toggleReadyState()
+    {
+        ready = !ready;
+        fluxel.SendPacketAsync(new MultiplayerReadyPacket(ready));
+        readyButton.ButtonText = ready ? "Unready" : "Ready";
+    }
 
     protected override void LoadComplete()
     {
         base.LoadComplete();
 
-        fluxel.RegisterListener<MultiplayerRoomUpdate>(EventType.MultiplayerRoomUpdate, onRoomUpdate);
-        fluxel.RegisterListener<MultiplayerJoinPacket>(EventType.MultiplayerJoin, onPlayerJoin);
-        fluxel.RegisterListener<MultiplayerLeavePacket>(EventType.MultiplayerLeave, onPlayerLeave);
-        fluxel.RegisterListener<MultiplayerReadyUpdate>(EventType.MultiplayerReady, onReadyUpdate);
+        client.UserJoined += onUserJoined;
+        client.UserLeft += onUserLeft;
+        client.ReadyStateChanged += updateReadyState;
+        client.Starting += startLoading;
     }
 
     protected override void Dispose(bool isDisposing)
     {
         base.Dispose(isDisposing);
 
-        fluxel.UnregisterListener<MultiplayerRoomUpdate>(EventType.MultiplayerRoomUpdate, onRoomUpdate);
-        fluxel.UnregisterListener<MultiplayerJoinPacket>(EventType.MultiplayerJoin, onPlayerJoin);
-        fluxel.UnregisterListener<MultiplayerLeavePacket>(EventType.MultiplayerLeave, onPlayerLeave);
-        fluxel.UnregisterListener<MultiplayerReadyUpdate>(EventType.MultiplayerReady, onReadyUpdate);
+        client.UserJoined -= onUserJoined;
+        client.UserLeft -= onUserLeft;
+        client.ReadyStateChanged -= updateReadyState;
+        client.Starting -= startLoading;
     }
 
-    private void onRoomUpdate(FluxelResponse<MultiplayerRoomUpdate> response)
+    private void onUserJoined(APIUserShort user)
     {
-        Schedule(() =>
-        {
-            string json = JsonConvert.SerializeObject(response.Data.Data);
-
-            /*
-            switch (response.Data.Type)
-            {
-                case "player/join":
-                    var player = JsonConvert.DeserializeObject<APIUserShort>(json);
-                    playerList.AddPlayer(player);
-                    break;
-            }
-            */
-        });
+        playerList.AddPlayer(user);
     }
 
-    private void onPlayerJoin(FluxelResponse<MultiplayerJoinPacket> response)
+    private void onUserLeft(APIUserShort user)
     {
-        if (!response.Data.SomeoneJoined) return;
-
-        Schedule(() => playerList.AddPlayer(response.Data.Player));
+        playerList.RemovePlayer(user.ID);
     }
 
-    private void onPlayerLeave(FluxelResponse<MultiplayerLeavePacket> response)
+    private void updateReadyState(long id, bool ready)
     {
-        Schedule(() => playerList.RemovePlayer(response.Data.UserID));
+        var player = playerList.GetPlayer(id);
+        player?.SetReady(ready);
     }
 
-    private void onReadyUpdate(FluxelResponse<MultiplayerReadyUpdate> response)
+    private void startLoading()
     {
-        Schedule(() =>
-        {
-            if (response.Data.AllReady)
-            {
-                // TODO: start game
-            }
-            else
-            {
-                var player = playerList.GetPlayer(response.Data.PlayerID);
-                if (player is null) return;
+        var map = mapStore.CurrentMapSet.Maps.First();
+        var mods = new List<IMod>();
 
-                player.SetReady(response.Data.Ready);
-            }
-        });
+        multiScreen.Push(new GameplayLoader(map, mods, () => new MultiGameplayScreen(client, map, mods)));
     }
 
     public override bool OnExiting(ScreenExitEvent e)
@@ -199,7 +190,7 @@ public partial class MultiLobby : MultiSubScreen
         {
             clock.Looping = false;
             stopClockMusic();
-            backgroundStack.AddBackgroundFromMap(null);
+            backgrounds.AddBackgroundFromMap(null);
             fluxel.SendPacketAsync(new MultiplayerLeavePacket());
             readyButton.Hide();
             return false;
@@ -253,7 +244,7 @@ public partial class MultiLobby : MultiSubScreen
             clock.FadeOut(); // because it sets itself to 1
             clock.RestartPoint = 0;
             clock.AllowLimitedLoop = false;
-            backgroundStack.AddBackgroundFromMap(mapInfo);
+            backgrounds.AddBackgroundFromMap(mapInfo);
             startClockMusic();
         }
 

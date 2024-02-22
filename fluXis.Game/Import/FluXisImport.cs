@@ -7,9 +7,8 @@ using fluXis.Game.Database;
 using fluXis.Game.Database.Maps;
 using fluXis.Game.Map;
 using fluXis.Game.Overlay.Notifications;
-using fluXis.Game.Overlay.Notifications.Types.Loading;
+using fluXis.Game.Overlay.Notifications.Tasks;
 using fluXis.Game.Utils;
-using Newtonsoft.Json;
 using osu.Framework.Logging;
 
 namespace fluXis.Game.Import;
@@ -23,20 +22,19 @@ public class FluXisImport : MapImporter
      */
     public int MapStatus { get; set; } = -2;
 
-    public LoadingNotificationData Notification { get; set; }
+    public TaskNotificationData Notification { get; set; }
 
     public override void Import(string path)
     {
         if (Notification == null)
         {
-            Notification = new LoadingNotificationData
+            Notification = new TaskNotificationData
             {
-                TextLoading = "Importing mapset...",
-                TextSuccess = "Imported mapset!",
-                TextFailure = "Failed to import mapset!"
+                TextWorking = "Importing...",
+                TextFinished = "Done! Click to view."
             };
 
-            Notifications.Add(Notification);
+            Notifications.AddTask(Notification);
         }
 
         try
@@ -58,7 +56,7 @@ public class FluXisImport : MapImporter
                 if (filename.EndsWith(".fsc"))
                 {
                     string json = new StreamReader(entry.Open()).ReadToEnd();
-                    MapInfo mapInfo = JsonConvert.DeserializeObject<MapInfo>(json);
+                    var mapInfo = json.Deserialize<MapInfo>();
 
                     float length = 0;
                     int keys = 0;
@@ -107,7 +105,7 @@ public class FluXisImport : MapImporter
                     if (effectFileEntry != null)
                     {
                         string content = new StreamReader(effectFileEntry.Open()).ReadToEnd();
-                        events.Load(content);
+                        events = MapEvents.Load<MapEvents>(content);
                     }
 
                     map.Filters = MapUtils.GetMapFilters(mapInfo, events);
@@ -122,7 +120,6 @@ public class FluXisImport : MapImporter
                     try
                     {
                         var onlineMap = MapStore.LookUpHash(hash);
-                        Logger.Log(JsonConvert.SerializeObject(onlineMap));
                         if (onlineMap == null) continue;
 
                         map.OnlineID = onlineMap.Id;
@@ -149,19 +146,22 @@ public class FluXisImport : MapImporter
 
                     foreach (var entry in archive.Entries)
                     {
-                        var filePath = fullPath + entry.Name;
+                        var filePath = fullPath + entry.FullName;
                         Directory.CreateDirectory(Path.GetDirectoryName(filePath));
                         entry.ExtractToFile(filePath, true);
                     }
 
                     archive.Dispose();
-                    MapStore.AddMapSet(mapSet.Detach());
+
+                    mapSet = mapSet.Detach();
+                    MapStore.AddMapSet(mapSet);
 
                     try { File.Delete(path); }
                     catch { Logger.Log($"Failed to delete {path}"); }
                 });
             }
 
+            Notification.ClickAction = () => MapStore.Present(mapSet);
             Notification.State = LoadingState.Complete;
         }
         catch (Exception e)

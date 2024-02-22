@@ -15,10 +15,10 @@ using fluXis.Game.Online.API.Models.Maps;
 using fluXis.Game.Online.API.Requests.Maps;
 using fluXis.Game.Online.Fluxel;
 using fluXis.Game.Overlay.Notifications;
-using fluXis.Game.Overlay.Notifications.Types.Loading;
+using fluXis.Game.Overlay.Notifications.Tasks;
+using fluXis.Game.Screens.Select;
 using fluXis.Game.Utils;
 using JetBrains.Annotations;
-using Newtonsoft.Json;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Bindables;
@@ -49,6 +49,9 @@ public partial class MapStore : Component
 
     [Resolved]
     private NotificationManager notifications { get; set; }
+
+    [Resolved]
+    private FluXisGameBase game { get; set; }
 
     private bool initialLoad;
     private Storage files;
@@ -156,6 +159,16 @@ public partial class MapStore : Component
             clock.RestartPoint = preview ? map?.Metadata.PreviewTime ?? 0 : 0;
     }
 
+    public void Present(RealmMapSet map)
+    {
+        Select(map.LowestDifficulty, true, false);
+
+        var stack = game.ScreenStack;
+
+        if (stack.CurrentScreen is not SelectScreen)
+            stack.Push(new SelectScreen());
+    }
+
     public void AddMapSet(RealmMapSet mapSet, bool notify = true)
     {
         mapSet.Resources ??= resources;
@@ -218,7 +231,7 @@ public partial class MapStore : Component
     public RealmMapSet GetFromGuid(Guid guid) => MapSets.FirstOrDefault(set => set.ID == guid);
     public RealmMapSet GetFromGuid(string guid) => GetFromGuid(Guid.Parse(guid));
 
-    public string Export(RealmMapSet set, LoadingNotificationData notification, bool openFolder = true)
+    public string Export(RealmMapSet set, TaskNotificationData notification, bool openFolder = true)
     {
         try
         {
@@ -309,9 +322,6 @@ public partial class MapStore : Component
             }).ToList() ?? new List<TimingPoint> { new() { BPM = 120, Time = 0, Signature = 4 } }, // Add default timing point to avoid issues
         };
 
-        var json = JsonConvert.SerializeObject(info);
-        var hash = MapUtils.GetHash(json);
-
         var realmMap = new RealmMap
         {
             ID = id,
@@ -330,7 +340,7 @@ public partial class MapStore : Component
             },
             FileName = fileName,
             OnlineID = 0,
-            Hash = hash,
+            Hash = MapUtils.GetHash(info.Serialize()),
             Filters = MapUtils.GetMapFilters(info, new MapEvents()),
             KeyCount = map.KeyCount,
             MapSet = set
@@ -377,9 +387,6 @@ public partial class MapStore : Component
             ScrollVelocities = refInfo.ScrollVelocities.Select(x => x.Copy()).ToList()
         };
 
-        var json = JsonConvert.SerializeObject(info);
-        var hash = MapUtils.GetHash(json);
-
         var realmMap = new RealmMap
         {
             ID = id,
@@ -397,7 +404,7 @@ public partial class MapStore : Component
                 ColorHex = map.Metadata.ColorHex
             },
             FileName = fileName,
-            Hash = hash,
+            Hash = MapUtils.GetHash(info.Serialize()),
             Filters = MapUtils.GetMapFilters(info, refEffect),
             KeyCount = map.KeyCount,
             MapSet = set
@@ -425,10 +432,8 @@ public partial class MapStore : Component
 
     private void save(RealmMap map, MapInfo info)
     {
-        var json = JsonConvert.SerializeObject(info);
-
         string path = MapFiles.GetFullPath(map.MapSet.GetPathForFile(map.FileName));
-        File.WriteAllText(path, json);
+        File.WriteAllText(path, info.Serialize());
     }
 
     public void DeleteDifficultyFromMapSet(RealmMapSet set, RealmMap map)
@@ -485,11 +490,11 @@ public partial class MapStore : Component
         if (DownloadQueue.Any(x => x.Id == set.Id))
             return;
 
-        var notification = new LoadingNotificationData
+        var notification = new TaskNotificationData
         {
-            TextLoading = "Downloading mapset...",
-            TextSuccess = $"Downloaded {set.Title} - {set.Artist}.",
-            TextFailure = "Failed to download mapset."
+            Text = $"{set.Title} - {set.Artist}",
+            TextWorking = "Downloading...",
+            TextFinished = "Done! Click to view."
         };
 
         var req = fluxel.CreateAPIRequest($"/mapset/{set.Id}/download");
@@ -550,7 +555,7 @@ public partial class MapStore : Component
         StartDownload(set);
         req.PerformAsync();
 
-        notifications.Add(notification);
+        notifications.AddTask(notification);
     }
 
     public void Remove(RealmMapSet map)
