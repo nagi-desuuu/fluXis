@@ -1,0 +1,14 @@
+{
+  "general": "General",
+  "back": "Bumalik",
+  "play": "Play",
+  "edit": "I-edit",
+  "select": "Select",
+  "delete": "Delete",
+  "export": "Export",
+  "panel-generic-confirm": "Sige",
+  "panel-generic-cancel": "Hindi",
+  "panel-confirm-exit": "Sigurado ka na aalis ka?",
+  "can-not-be-undone": "This action cannot be undone.",
+  "login-to-use": "Mag-login muna para magamit ito."
+}

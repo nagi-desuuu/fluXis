@@ -1,0 +1,15 @@
+{
+  "title": "General",
+  "language-title": "Wika",
+  "language-current": "Current Language",
+  "updates-title": "Updates",
+  "release-channel": "Release Channel",
+  "release-channel-description": "Pumili ng release channel kung saan makakatanggap ng mga update sa game.",
+  "check-updates": "Check for updates",
+  "check-updates-description": "Tignan kung merong bagong update sa fluXis.",
+  "folders-title": "Folders",
+  "open-folder": "Open fluXis folder",
+  "export-logs": "Export logs",
+  "export-logs-description": "Isiksik ang lahat ng log files sa isang zip file para madali itong maipadala.",
+  "change-folder": "Change folder location"
+}

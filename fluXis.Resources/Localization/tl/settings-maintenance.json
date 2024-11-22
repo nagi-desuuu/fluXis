@@ -1,0 +1,11 @@
+{
+  "title": "Maintenance",
+  "files-title": "Files",
+  "files-clean-up": "Clean up files",
+  "files-clean-up-description": "Tangalin ang lahat ng mga files na hindi ginagamit ng mga mapa.",
+  "maps-title": "Maps",
+  "maps-recalculate-filters": "Recalculate Filters",
+  "maps-recalculate-filters-description": "Ikalkulahin lahat ng mga filter sa lahat ng mga mapa mo.",
+  "maps-scores-clean-up": "Clean up Scores",
+  "maps-scores-clean-up-description": "Tanggalin lahat ang mga scores sa mga mapa na nawala na ngayon."
+}

@@ -1,0 +1,9 @@
+{
+  "title": "Debug",
+  "show-log-overlay": "Show Log Overlay",
+  "import-file": "Import File",
+  "log-api": "Log API Responses.",
+  "log-api-description": "Itala lahat ng mga response ng API sa mga log files. Babala na baka magkaroon ito ng mga sensitibong laman katulad ng mga email at access tokens!!!",
+  "show-missing-localizations": "Show missing localizations.",
+  "show-missing-localizations-description": "Ipakita ang ID ng mga strings na hinda pa naisalin sa ibang wika."
+}

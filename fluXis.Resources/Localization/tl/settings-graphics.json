@@ -1,0 +1,12 @@
+{
+  "title": "Graphics",
+  "layout-title": "Layout",
+  "window-mode": "Window Mode",
+  "rendering-title": "Rendering",
+  "renderer": "Renderer",
+  "renderer-description": "Kailanganing buksan ulit ang fluXis para magkabisa ang mga pagbabago.",
+  "frame-limiter": "Frame Limiter",
+  "threading-mode": "Threading Mode",
+  "show-fps": "Show FPS",
+  "show-fps-description": "Shows the current DrawsPerSecond and UpdatesPerSecond in the bottom right corner."
+}
