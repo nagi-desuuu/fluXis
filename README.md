@@ -3,8 +3,8 @@
 <p align="center">A community-driven rhythm game with a focus on creativity and expression.</p>
 
 <p align="center">
-<a href="https://github.com/TeamFluXis/fluXis/releases"><img src="https://img.shields.io/github/v/release/TeamFluXis/fluXis" alt="github release badge"></a>
-<a href="https://github.com/TeamFluXis/fluXis/blob/main/LICENSE.md"><img src="https://img.shields.io/github/license/TeamFluXis/fluXis" alt="license badge"></a>
+<a href="https://github.com/InventiveRhythm/fluXis/releases"><img src="https://img.shields.io/github/v/release/InventiveRhythm/fluXis" alt="github release badge"></a>
+<a href="https://github.com/InventiveRhythm/fluXis/blob/main/LICENSE.md"><img src="https://img.shields.io/github/license/InventiveRhythm/fluXis" alt="license badge"></a>
 </p>
 
 ## Downloading and playing the game
@@ -31,7 +31,7 @@ macOS releases soon™
 ### Downloading the source code
 You can download the source code by cloning the repository using git:
 ```shell
-git clone https://github.com/TeamFluXis/fluXis
+git clone https://github.com/InventiveRhythm/fluXis
 cd fluXis
 ```
 
@@ -48,3 +48,13 @@ dotnet run --project fluXis.Desktop
 
 ## License
 fluXis is licensed under the [MIT License](LICENSE). tl;dr: You can do whatever you want with the code, as long as you include the original license.
+
+## Star History
+
+<a href="https://star-history.com/#InventiveRhythm/fluXis&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=InventiveRhythm/fluXis&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=InventiveRhythm/fluXis&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=InventiveRhythm/fluXis&type=Date" />
+ </picture>
+</a >
