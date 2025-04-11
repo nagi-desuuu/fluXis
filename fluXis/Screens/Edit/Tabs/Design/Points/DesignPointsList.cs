@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using fluXis.Graphics.UserInterface.Color;
+using fluXis.Map.Structures;
 using fluXis.Map.Structures.Bases;
 using fluXis.Map.Structures.Events;
 using fluXis.Screens.Edit.Tabs.Design.Points.Entries;
@@ -11,10 +12,20 @@ public partial class DesignPointsList : PointsList
 {
     protected override void RegisterEvents()
     {
+        Map.ScrollVelocityAdded += AddPoint;
+        Map.ScrollVelocityUpdated += UpdatePoint;
+        Map.ScrollVelocityRemoved += RemovePoint;
+        Map.MapInfo.ScrollVelocities.ForEach(AddPoint);
+
         Map.FlashEventAdded += AddPoint;
         Map.FlashEventUpdated += UpdatePoint;
         Map.FlashEventRemoved += RemovePoint;
         Map.MapEvents.FlashEvents.ForEach(AddPoint);
+
+        Map.PulseEventAdded += AddPoint;
+        Map.PulseEventUpdated += UpdatePoint;
+        Map.PulseEventRemoved += RemovePoint;
+        Map.MapEvents.PulseEvents.ForEach(AddPoint);
 
         Map.ShakeEventAdded += AddPoint;
         Map.ShakeEventUpdated += UpdatePoint;
@@ -72,42 +83,43 @@ public partial class DesignPointsList : PointsList
         Map.MapEvents.NoteEvents.ForEach(AddPoint);
     }
 
-    protected override PointListEntry CreateEntryFor(ITimedObject obj)
+    protected override PointListEntry CreateEntryFor(ITimedObject obj) => obj switch
     {
-        return obj switch
-        {
-            FlashEvent flash => new FlashEntry(flash),
-            ShakeEvent shake => new ShakeEntry(shake),
-            PlayfieldMoveEvent move => new PlayfieldMoveEntry(move),
-            PlayfieldScaleEvent scale => new PlayfieldScaleEntry(scale),
-            LayerFadeEvent fade => new LayerFadeEntry(fade),
-            HitObjectEaseEvent ease => new HitObjectEaseEntry(ease),
-            BeatPulseEvent pulse => new BeatPulseEntry(pulse),
-            PlayfieldRotateEvent rotate => new PlayfieldRotateEntry(rotate),
-            ShaderEvent shader => new ShaderEntry(shader),
-            ScrollMultiplierEvent scroll => new ScrollMultiplierEntry(scroll),
-            TimeOffsetEvent offset => new TimeOffsetEntry(offset),
-            NoteEvent note => new NoteEntry(note),
-            _ => null
-        };
-    }
+        ScrollVelocity scroll => new ScrollVelocityEntry(scroll),
+        FlashEvent flash => new FlashEntry(flash),
+        PulseEvent pulse => new PulseEntry(pulse),
+        ShakeEvent shake => new ShakeEntry(shake),
+        PlayfieldMoveEvent move => new PlayfieldMoveEntry(move),
+        PlayfieldScaleEvent scale => new PlayfieldScaleEntry(scale),
+        LayerFadeEvent fade => new LayerFadeEntry(fade),
+        HitObjectEaseEvent ease => new HitObjectEaseEntry(ease),
+        BeatPulseEvent pulse => new BeatPulseEntry(pulse),
+        PlayfieldRotateEvent rotate => new PlayfieldRotateEntry(rotate),
+        ShaderEvent shader => new ShaderEntry(shader),
+        ScrollMultiplierEvent scroll => new ScrollMultiplierEntry(scroll),
+        TimeOffsetEvent offset => new TimeOffsetEntry(offset),
+        NoteEvent note => new NoteEntry(note),
+        _ => null
+    };
 
-    protected override IEnumerable<AddButtonEntry> CreateAddEntries()
+    protected override IEnumerable<DropdownEntry> CreateDropdownEntries()
     {
-        var entries = new List<AddButtonEntry>
+        var entries = new List<DropdownEntry>
         {
-            new("Flash", FluXisColors.Flash, () => Create(new FlashEvent())),
-            new("Shake", FluXisColors.Shake, () => Create(new ShakeEvent())),
-            new("Playfield Move", FluXisColors.PlayfieldMove, () => Create(new PlayfieldMoveEvent())),
-            new("Playfield Scale", FluXisColors.PlayfieldScale, () => Create(new PlayfieldScaleEvent())),
-            new("Playfield Rotate", FluXisColors.PlayfieldRotate, () => Create(new PlayfieldRotateEvent())),
-            new("HitObject Ease", FluXisColors.HitObjectEase, () => Create(new HitObjectEaseEvent())),
-            new("Layer Fade", FluXisColors.LayerFade, () => Create(new LayerFadeEvent())),
-            new("Beat Pulse", FluXisColors.BeatPulse, () => Create(new BeatPulseEvent())),
-            new("Shader", FluXisColors.Shader, () => Create(new ShaderEvent { ShaderName = "Bloom" })),
-            new("Scroll Multiplier", FluXisColors.ScrollMultiply, () => Create(new ScrollMultiplierEvent())),
-            new("Time Offset", FluXisColors.TimeOffset, () => Create(new TimeOffsetEvent())),
-            new("Note", FluXisColors.Note, () => Create(new NoteEvent())),
+            new("Scroll Velocity", FluXisColors.ScrollVelocity, () => Create(new ScrollVelocity()), x => x is ScrollVelocity),
+            new("Flash", FluXisColors.Flash, () => Create(new FlashEvent()), x => x is FlashEvent),
+            new("Pulse", FluXisColors.Pulse, () => Create(new PulseEvent()), x => x is PulseEvent),
+            new("Shake", FluXisColors.Shake, () => Create(new ShakeEvent()), x => x is ShakeEvent),
+            new("Playfield Move", FluXisColors.PlayfieldMove, () => Create(new PlayfieldMoveEvent()), x => x is PlayfieldMoveEvent),
+            new("Playfield Scale", FluXisColors.PlayfieldScale, () => Create(new PlayfieldScaleEvent()), x => x is PlayfieldScaleEvent),
+            new("Playfield Rotate", FluXisColors.PlayfieldRotate, () => Create(new PlayfieldRotateEvent()), x => x is PlayfieldRotateEvent),
+            new("HitObject Ease", FluXisColors.HitObjectEase, () => Create(new HitObjectEaseEvent()), x => x is HitObjectEaseEvent),
+            new("Layer Fade", FluXisColors.LayerFade, () => Create(new LayerFadeEvent()), x => x is LayerFadeEvent),
+            new("Beat Pulse", FluXisColors.BeatPulse, () => Create(new BeatPulseEvent()), x => x is BeatPulseEvent),
+            new("Shader", FluXisColors.Shader, () => Create(new ShaderEvent { ShaderName = "Bloom" }), x => x is ShaderEvent),
+            new("Scroll Multiplier", FluXisColors.ScrollMultiply, () => Create(new ScrollMultiplierEvent()), x => x is ScrollMultiplierEvent),
+            new("Time Offset", FluXisColors.TimeOffset, () => Create(new TimeOffsetEvent()), x => x is TimeOffsetEvent),
+            new("Note", FluXisColors.Note, () => Create(new NoteEvent()), x => x is NoteEvent),
         };
 
         return entries;

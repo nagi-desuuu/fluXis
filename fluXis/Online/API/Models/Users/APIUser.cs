@@ -13,6 +13,9 @@ public class APIUser
     [JsonProperty("id")]
     public long ID { get; init; }
 
+    [JsonProperty("steam")]
+    public ulong? SteamID { get; set; }
+
     [JsonProperty("username")]
     public string Username { get; set; } = null!;
 
@@ -38,7 +41,7 @@ public class APIUser
     public string? CountryCode { get; set; }
 
     [JsonProperty("groups")]
-    public List<IAPIGroup> Groups { get; init; } = new();
+    public List<APIGroup> Groups { get; init; } = new();
 
     [JsonProperty("club")]
     public APIClub? Club { get; set; }

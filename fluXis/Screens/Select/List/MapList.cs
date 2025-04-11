@@ -21,13 +21,10 @@ public partial class MapList : FluXisScrollContainer
     private SelectScreen screen { get; set; }
 
     [Resolved]
-    private MapStore store { get; set; }
-
-    private List<IListItem> items { get; } = new();
-
-    public IReadOnlyList<IListItem> Items => items;
+    private MapStore maps { get; set; }
 
     private Bindable<MapUtils.SortingMode> sorting { get; }
+    private List<IListItem> items { get; } = new();
 
     private bool bulkInserting;
 
@@ -43,7 +40,8 @@ public partial class MapList : FluXisScrollContainer
         Masking = false;
         RelativeSizeAxes = Axes.Both;
         ScrollbarAnchor = Anchor.TopLeft;
-        ScrollbarOverlapsContent = false;
+        ScrollbarOverlapsContent = true;
+        ScrollbarMargin = 4;
 
         Child = Content = new Container
         {
@@ -62,7 +60,7 @@ public partial class MapList : FluXisScrollContainer
     public void Insert(IListItem item)
     {
         item.Screen = screen;
-        item.Store = store;
+        item.Store = maps;
         item.Sorting = sorting;
         item.Bind();
 
@@ -103,11 +101,18 @@ public partial class MapList : FluXisScrollContainer
             pos += size + 10;
 
             if (item.Position + size < Current - 250 || item.Position > Current + DrawHeight + 250)
+            {
+                if (!item.Displayed)
+                    continue;
+
+                item.Displayed = false;
                 Content.Remove(item.Drawable, false);
+            }
             else if (item.Drawable.Parent == null)
             {
                 Content.Add(item.Drawable);
                 item.Drawable.Y = item.Position;
+                item.Displayed = true;
             }
         }
 
@@ -119,15 +124,22 @@ public partial class MapList : FluXisScrollContainer
         items.Sort((a, b) => a.CompareTo(b));
     }
 
-    public void ScrollToSelected()
+    // used for testing
+    public void SetSorting(MapUtils.SortingMode mode)
+    {
+        sorting.Value = mode;
+        Sort();
+    }
+
+    public void ScrollToSelected(bool smooth = true)
     {
         var selected = items.FirstOrDefault(c => c.State.Value == SelectedState.Selected);
 
         if (selected != null)
-            ScrollToItem(selected);
+            ScrollToItem(selected, smooth);
     }
 
-    public void ScrollToItem(IListItem item)
+    public void ScrollToItem(IListItem item, bool smooth = true)
     {
         var pos1 = item.Position;
         var pos2 = item.Position + item.Size;
@@ -136,8 +148,8 @@ public partial class MapList : FluXisScrollContainer
         var max = Math.Max(pos1, pos2);
 
         if (min < Current || (min > Current && pos2 > AvailableContent))
-            ScrollTo(min);
+            ScrollTo(min, smooth);
         else if (max > Current + DisplayableContent)
-            ScrollTo(max - DisplayableContent);
+            ScrollTo(max - DisplayableContent, smooth);
     }
 }

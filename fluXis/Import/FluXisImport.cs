@@ -50,8 +50,6 @@ public class FluXisImport : MapImporter
 
         try
         {
-            Logger.Log($"Loading mapset from {path}");
-
             var set = getRealmMaps(path);
 
             var existing = Realm.Run(r =>
@@ -68,7 +66,6 @@ public class FluXisImport : MapImporter
 
                 foreach (var file in files)
                 {
-                    Logger.Log($"Moving {file}");
                     var f = new FileInfo(file);
                     f.MoveTo($"{originalPath}/{f.Name}", true);
                 }
@@ -218,7 +215,9 @@ public class FluXisImport : MapImporter
                     Metadata = new RealmMapMetadata
                     {
                         Title = mapInfo.Metadata.Title ?? "",
+                        TitleRomanized = mapInfo.Metadata.TitleRomanized ?? mapInfo.Metadata.Title ?? "",
                         Artist = mapInfo.Metadata.Artist ?? "",
+                        ArtistRomanized = mapInfo.Metadata.ArtistRomanized ?? mapInfo.Metadata.Artist ?? "",
                         Mapper = mapInfo.Metadata.Mapper ?? "",
                         Source = mapInfo.Metadata.AudioSource ?? "",
                         Tags = mapInfo.Metadata.Tags ?? "",
@@ -237,7 +236,7 @@ public class FluXisImport : MapImporter
                     FileName = filename
                 };
 
-                mapInfo.Map = map;
+                mapInfo.RealmEntry = map;
 
                 if (string.IsNullOrEmpty(map.Metadata.ColorHex))
                 {

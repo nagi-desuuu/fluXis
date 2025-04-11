@@ -42,7 +42,7 @@ public partial class DrawableLongNote : DrawableHitObject
     {
         InternalChildren = new[]
         {
-            bodyPiece = SkinManager.GetLongNoteBody(Data.Lane, ObjectManager.KeyCount).With(d =>
+            bodyPiece = SkinManager.GetLongNoteBody(VisualLane, ObjectManager.KeyCount).With(d =>
             {
                 d.Anchor = Anchor.BottomCentre;
                 d.Origin = Anchor.BottomCentre;
@@ -70,7 +70,7 @@ public partial class DrawableLongNote : DrawableHitObject
         headPiece.OnMiss += () => tailPiece.UpdateJudgement(false);
         tailPiece.OnJudgement += diff =>
         {
-            var judgement = Screen.ReleaseWindows.JudgementFor(diff);
+            var judgement = Ruleset.ReleaseWindows.JudgementFor(diff);
 
             if (judgement == Judgement.Alright)
                 miss();

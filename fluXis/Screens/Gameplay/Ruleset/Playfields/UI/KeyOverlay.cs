@@ -14,7 +14,7 @@ namespace fluXis.Screens.Gameplay.Ruleset.Playfields.UI;
 public partial class KeyOverlay : Container
 {
     [Resolved]
-    private GameplayScreen screen { get; set; }
+    private RulesetContainer ruleset { get; set; }
 
     [Resolved]
     private Playfield playfield { get; set; }
@@ -32,11 +32,11 @@ public partial class KeyOverlay : Container
     {
         get
         {
-            var binds = screen.Input.Keys;
+            var binds = ruleset.Input.Keys;
 
-            if (screen.Input.Dual)
+            if (ruleset.Input.Dual)
             {
-                var half = screen.Input.Keys.Count / 2;
+                var half = ruleset.Input.Keys.Count / 2;
                 var start = half * playfield.Index;
                 return binds.GetRange(start, half);
             }
@@ -68,7 +68,9 @@ public partial class KeyOverlay : Container
 
     protected override void Update()
     {
-        if (keyCount != laneSwitchManager.CurrentCount)
+        if (ruleset.AlwaysShowKeys)
+            Alpha = 1;
+        else if (keyCount != laneSwitchManager.CurrentCount)
         {
             keyCount = laneSwitchManager.CurrentCount;
             flow.FadeIn(200).Delay(1200).FadeOut(200);

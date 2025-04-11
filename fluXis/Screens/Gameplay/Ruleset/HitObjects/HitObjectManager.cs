@@ -1,6 +1,7 @@
 using System.Linq;
 using fluXis.Configuration;
 using fluXis.Map.Structures;
+using fluXis.Screens.Gameplay.Audio.Hitsounds;
 using fluXis.Screens.Gameplay.Input;
 using fluXis.Screens.Gameplay.Ruleset.Playfields;
 using fluXis.Skinning;
@@ -17,21 +18,24 @@ public partial class HitObjectManager : Container<HitObjectColumn>
     private SkinManager skinManager { get; set; }
 
     [Resolved]
-    private GameplayScreen screen { get; set; }
+    private RulesetContainer ruleset { get; set; }
 
     [Resolved]
     private Playfield playfield { get; set; }
 
     [Resolved]
+    private Hitsounding hitsounding { get; set; }
+
+    [Resolved]
     private LaneSwitchManager laneSwitchManager { get; set; }
 
-    private GameplayInput input => screen.Input;
+    private GameplayInput input => ruleset.Input;
 
     private Bindable<bool> useSnapColors;
     public bool UseSnapColors => useSnapColors.Value;
 
     private Bindable<float> scrollSpeed;
-    public float ScrollSpeed => scrollSpeed.Value * (scrollSpeed.Value / (scrollSpeed.Value * screen.Rate));
+    public float ScrollSpeed => scrollSpeed.Value * (scrollSpeed.Value / (scrollSpeed.Value * ruleset.Rate));
 
     private Bindable<bool> hitsounds;
 
@@ -62,7 +66,15 @@ public partial class HitObjectManager : Container<HitObjectColumn>
         RelativeSizeAxes = Axes.Both;
 
         InternalChildrenEnumerable = Enumerable.Range(0, KeyCount)
-                                               .Select(i => new HitObjectColumn(screen.Map, this, i + 1));
+                                               .Select(i =>
+                                               {
+                                                   var lane = i + 1;
+
+                                                   if (ruleset.MapInfo.IsSplit)
+                                                       lane += KeyCount * playfield.Index;
+
+                                                   return new HitObjectColumn(ruleset.MapInfo, this, lane);
+                                               });
 
         scrollSpeed = config.GetBindable<float>(FluXisSetting.ScrollSpeed);
         useSnapColors = config.GetBindable<bool>(FluXisSetting.SnapColoring);
@@ -73,21 +85,24 @@ public partial class HitObjectManager : Container<HitObjectColumn>
     {
         base.LoadComplete();
 
-        input.OnPress += key =>
+        if (!playfield.IsSubPlayfield)
         {
-            var lane = input.Keys.IndexOf(key) + 1;
-            lane -= KeyCount * playfield.Index;
+            input.OnPress += key =>
+            {
+                var lane = input.Keys.IndexOf(key) + 1;
+                lane -= KeyCount * playfield.Index;
 
-            if (lane > KeyCount || lane <= 0)
-                return;
+                if (lane > KeyCount || lane <= 0)
+                    return;
 
-            var hit = this[lane - 1].NextUp;
+                var hit = this[lane - 1].NextUp;
 
-            if (hit == null)
-                return;
+                if (hit == null)
+                    return;
 
-            PlayHitSound(hit);
-        };
+                PlayHitSound(hit);
+            };
+        }
     }
 
     protected override void Update()
@@ -97,6 +112,9 @@ public partial class HitObjectManager : Container<HitObjectColumn>
 
     public float PositionAtLane(float lane)
     {
+        while (lane > KeyCount)
+            lane -= KeyCount;
+
         var receptors = playfield.Receptors;
         var x = 0f;
 
@@ -117,7 +135,7 @@ public partial class HitObjectManager : Container<HitObjectColumn>
 
     public Easing EasingAtTime(double time)
     {
-        var events = screen.MapEvents.HitObjectEaseEvents;
+        var events = ruleset.MapEvents.HitObjectEaseEvents;
 
         if (events.Count == 0)
             return Easing.None;
@@ -133,20 +151,20 @@ public partial class HitObjectManager : Container<HitObjectColumn>
         var drawable = GetDrawableFor(hitObject);
         var idx = hitObject.Lane - 1;
 
-        if (playfield.Index > 0)
-            idx += playfield.Index * (screen.Input.Keys.Count / 2);
+        if (playfield.Index > 0 && !playfield.MapInfo.IsSplit)
+            idx += playfield.Index * (input.Keys.Count / 2);
 
-        if (screen.Input.Keys.Count > idx)
-            drawable.Keybind = screen.Input.Keys[idx];
+        if (input.Keys.Count > idx)
+            drawable.Keybind = input.Keys[idx];
 
         drawable.OnLoadComplete += _ =>
         {
-            for (var i = 0; i < screen.Input.Pressed.Length; i++)
+            for (var i = 0; i < input.Pressed.Length; i++)
             {
-                if (!screen.Input.Pressed[i])
+                if (!input.Pressed[i])
                     continue;
 
-                var bind = screen.Input.Keys[i];
+                var bind = input.Keys[i];
                 drawable.OnPressed(bind);
             }
         };
@@ -173,6 +191,9 @@ public partial class HitObjectManager : Container<HitObjectColumn>
 
     public void PlayHitSound(HitObject hitObject, bool userTriggered = true)
     {
+        if (ruleset.CatchingUp || playfield.IsSubPlayfield)
+            return;
+
         // ignore hitsounds when the next is a
         // tick note since it would be played twice
         // when hitting them as a normal note
@@ -188,7 +209,7 @@ public partial class HitObjectManager : Container<HitObjectColumn>
                 sound = ":tick-small";
         }
 
-        var channel = screen.Hitsounding.GetSample(sound, hitsounds.Value);
+        var channel = hitsounding.GetSample(sound, hitsounds.Value);
         channel?.Play();
     }
 }

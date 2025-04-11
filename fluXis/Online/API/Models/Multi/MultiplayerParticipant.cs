@@ -1,11 +1,16 @@
 using fluXis.Online.API.Models.Users;
+using Newtonsoft.Json;
 
 namespace fluXis.Online.API.Models.Multi;
 
-public class MultiplayerParticipant : IMultiplayerParticipant
+[JsonObject(MemberSerialization.OptIn)]
+public class MultiplayerParticipant
 {
-    public long ID { get; init; }
+    [JsonProperty("player")]
+    public APIUser Player { get; init; }
+
+    [JsonProperty("state")]
     public MultiplayerUserState State { get; set; }
 
-    public APIUser User { get; set; } = null!;
+    public long ID => Player.ID;
 }

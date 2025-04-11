@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using fluXis.Database.Maps;
-using fluXis.Graphics.UserInterface.Panel;
 using fluXis.Mods;
 using fluXis.Online.Activity;
 using fluXis.Online.Multiplayer;
@@ -9,7 +8,7 @@ using fluXis.Scoring;
 using fluXis.Scoring.Structs;
 using fluXis.Screens.Gameplay;
 using fluXis.Screens.Gameplay.Ruleset.Playfields;
-using osu.Framework.Allocation;
+using fluXis.Utils.Extensions;
 using osu.Framework.Screens;
 
 namespace fluXis.Screens.Multiplayer.Gameplay;
@@ -18,12 +17,9 @@ public partial class MultiGameplayScreen : GameplayScreen
 {
     protected override bool InstantlyExitOnPause => true;
     protected override bool AllowRestart => false;
-    public override bool SubmitScore => false;
+    protected override bool SubmitScore => false;
 
-    private Playfield field => PlayfieldManager.Playfields[0];
-
-    [Resolved]
-    private PanelContainer panels { get; set; }
+    private PlayfieldPlayer player => PlayfieldManager.FirstPlayer;
 
     private MultiplayerClient client { get; }
 
@@ -47,8 +43,8 @@ public partial class MultiGameplayScreen : GameplayScreen
     {
         base.LoadComplete();
 
-        field.HealthProcessor.CanFail = false;
-        field.JudgementProcessor.ResultAdded += sendScore;
+        player.HealthProcessor.CanFail = false;
+        player.JudgementProcessor.ResultAdded += sendScore;
 
         client.OnScore += onScoreUpdate;
         client.OnResultsReady += onOnResultsReady;
@@ -59,7 +55,7 @@ public partial class MultiGameplayScreen : GameplayScreen
     {
         base.Dispose(isDisposing);
 
-        field.JudgementProcessor.ResultAdded -= sendScore;
+        player.JudgementProcessor.ResultAdded -= sendScore;
 
         client.OnScore -= onScoreUpdate;
         client.OnResultsReady -= onOnResultsReady;
@@ -68,31 +64,36 @@ public partial class MultiGameplayScreen : GameplayScreen
 
     protected override void End()
     {
-        client.Finish(field.ScoreProcessor.ToScoreInfo());
+        client.Finish(player.ScoreProcessor.ToScoreInfo());
     }
 
-    private void sendScore(HitResult _) => client.UpdateScore(field.ScoreProcessor.Score);
+    private void sendScore(HitResult _) => client.UpdateScore(player.ScoreProcessor.Score);
 
     private void onScoreUpdate(long user, int score)
     {
-        var si = client.Room?.Scores?.FirstOrDefault(s => s.PlayerID == user);
+        Scheduler.ScheduleIfNeeded(() =>
+        {
+            var si = client.Room?.Scores?.FirstOrDefault(s => s.PlayerID == user);
 
-        if (si is null)
-            return;
+            if (si is null)
+                return;
 
-        si.Score = score;
+            si.Score = score;
+        });
     }
 
     private void onOnResultsReady(List<ScoreInfo> scores)
     {
-        if (this.IsCurrentScreen())
-            this.Push(new MultiResults(RealmMap, scores));
+        Scheduler.ScheduleOnceIfNeeded(() =>
+        {
+            if (this.IsCurrentScreen())
+                this.Push(new MultiplayerResults(RealmMap, scores, client));
+        });
     }
 
     private void onDisconnect()
     {
         CursorVisible = true;
         GameplayClock.Stop();
-        panels.Content = new DisconnectedPanel(this.Exit);
     }
 }

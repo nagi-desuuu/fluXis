@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using fluXis.Configuration;
 using fluXis.Graphics.Sprites;
 using fluXis.Input;
 using fluXis.Localization;
@@ -54,7 +56,7 @@ public partial class InputKeybindingsSection : SettingsSubSection
     private SettingsKeybind tenKeyLayoutDual;
 
     [BackgroundDependencyLoader]
-    private void load()
+    private void load(FluXisConfig config)
     {
         AddRange(new Drawable[]
         {
@@ -116,11 +118,44 @@ public partial class InputKeybindingsSection : SettingsSubSection
                 Label = strings.Redo,
                 Keybinds = new object[] { EditorKeybinding.Redo }
             },
+            new SettingsDropdown<EditorScrollAction>
+            {
+                Label = "Scroll Action",
+                Items = Enum.GetValues<EditorScrollAction>(),
+                Bindable = config.GetBindable<EditorScrollAction>(FluXisSetting.EditorScrollAction),
+                Padded = true
+            },
+            new SettingsDropdown<EditorScrollAction>
+            {
+                Label = "Ctrl-Scroll Action",
+                Items = Enum.GetValues<EditorScrollAction>(),
+                Bindable = config.GetBindable<EditorScrollAction>(FluXisSetting.EditorControlScrollAction),
+                Padded = true
+            },
+            new SettingsDropdown<EditorScrollAction>
+            {
+                Label = "Shift-Scroll Action",
+                Items = Enum.GetValues<EditorScrollAction>(),
+                Bindable = config.GetBindable<EditorScrollAction>(FluXisSetting.EditorShiftScrollAction),
+                Padded = true
+            },
+            new SettingsDropdown<EditorScrollAction>
+            {
+                Label = "Ctrl-Shift-Scroll Action",
+                Items = Enum.GetValues<EditorScrollAction>(),
+                Bindable = config.GetBindable<EditorScrollAction>(FluXisSetting.EditorControlShiftScrollAction),
+                Padded = true
+            },
             new KeybindSectionTitle { Text = strings.Overlays },
             new SettingsKeybind
             {
                 Label = strings.ToggleSettings,
                 Keybinds = new object[] { FluXisGlobalKeybind.ToggleSettings }
+            },
+            new SettingsKeybind
+            {
+                Label = strings.ToggleDashboard,
+                Keybinds = new object[] { FluXisGlobalKeybind.ToggleDashboard }
             },
             new KeybindSectionTitle { Text = strings.Audio },
             new SettingsKeybind

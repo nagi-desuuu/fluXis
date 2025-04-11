@@ -8,32 +8,36 @@ using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Track;
 using osu.Framework.Bindables;
-using osu.Framework.Logging;
+using osu.Framework.Graphics.Audio;
 using osu.Framework.Timing;
 
 namespace fluXis.Screens.Gameplay.Audio;
 
 public partial class GameplayClock : TransformableClock, IFrameBasedClock, ISourceChangeableClock, IBeatSyncProvider
 {
+
     public float Offset => useOffset ? offset.Value : 0;
     private bool useOffset { get; }
 
     public override double CurrentTime => underlying.CurrentTime - Offset;
     public override bool IsRunning => underlying.IsRunning;
-    public double ElapsedFrameTime => underlying.ElapsedFrameTime;
-    public double FramesPerSecond => underlying.FramesPerSecond;
+    public override double ElapsedFrameTime => underlying.ElapsedFrameTime;
+    public override double FramesPerSecond => underlying.FramesPerSecond;
     public IClock Source => underlying.Source;
 
     private MapInfo mapInfo { get; }
-    private Track track;
+    private ITrackStore tracks { get; }
+
+    public DrawableTrack Track { get; private set; }
 
     private FramedMapClock underlying { get; }
     private Bindable<float> offset;
 
     public event Action<double, double> OnSeek;
 
-    public GameplayClock(MapInfo info, Track track, bool useOffset)
+    public GameplayClock(ITrackStore tracks, MapInfo info, Track track, bool useOffset)
     {
+        this.tracks = tracks;
         this.useOffset = useOffset;
 
         underlying = new FramedMapClock();
@@ -71,7 +75,6 @@ public partial class GameplayClock : TransformableClock, IFrameBasedClock, ISour
         var current = CurrentTime;
         var result = underlying.Seek(position);
         OnSeek?.Invoke(current, position);
-        Logger.Log($"Seeking from {current} to {position}.", LoggingTarget.Runtime, LogLevel.Debug);
         return result;
     }
 
@@ -85,14 +88,16 @@ public partial class GameplayClock : TransformableClock, IFrameBasedClock, ISour
         return underlying.Seek(position);
     }
 
-    public void ProcessFrame() { }
+    public override void ProcessFrame() { }
 
     public void ChangeSource(IClock source)
     {
-        track?.Dispose();
-        track = source as Track;
-        track?.AddAdjustment(AdjustableProperty.Frequency, RateBindable);
+        Track?.Expire();
+        Track = new DrawableTrack(source as Track ?? tracks.GetVirtual(10000));
+        Track?.AddAdjustment(AdjustableProperty.Frequency, RateBindable);
         underlying.ChangeSource(source);
+
+        AddInternal(Track);
     }
 
     protected override void Update()
@@ -106,7 +111,7 @@ public partial class GameplayClock : TransformableClock, IFrameBasedClock, ISour
     {
         base.Dispose(isDisposing);
 
-        track?.Dispose();
+        Track?.Dispose();
     }
 
     #region Timing Stuff

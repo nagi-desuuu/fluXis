@@ -14,10 +14,10 @@ using fluXis.Map;
 using fluXis.Online.API.Models.Users;
 using fluXis.Online.Fluxel;
 using fluXis.Overlay.Auth;
+using fluXis.Overlay.Browse;
 using fluXis.Overlay.Network;
 using fluXis.Overlay.Settings;
 using fluXis.Overlay.Toolbar;
-using fluXis.Screens.Browse;
 using fluXis.Screens.Edit;
 using fluXis.Screens.Menu.UI;
 using fluXis.Screens.Menu.UI.Buttons;
@@ -26,7 +26,6 @@ using fluXis.Screens.Menu.UI.Snow;
 using fluXis.Screens.Menu.UI.Updates;
 using fluXis.Screens.Menu.UI.Visualizer;
 using fluXis.Screens.Multiplayer;
-using fluXis.Screens.Ranking;
 using fluXis.Screens.Select;
 using fluXis.UI;
 using fluXis.Utils.Extensions;
@@ -82,6 +81,9 @@ public partial class MenuScreen : FluXisScreen
     private Dashboard dashboard { get; set; }
 
     [Resolved]
+    private BrowseOverlay browse { get; set; }
+
+    [Resolved]
     private PanelContainer panels { get; set; }
 
     private FluXisTextFlow splashText;
@@ -91,7 +93,7 @@ public partial class MenuScreen : FluXisScreen
     private MenuVisualizer visualizer;
     private ParallaxContainer snowContainer;
 
-    private bool shouldSnow => Game.CurrentSeason == Season.Winter || forceSnow.Value;
+    private bool shouldSnow => Game.CurrentSeason is Season.Winter or Season.Christmas || forceSnow.Value;
 
     private Bindable<bool> forceSnow;
 
@@ -329,19 +331,19 @@ public partial class MenuScreen : FluXisScreen
                             new MenuLinkButton
                             {
                                 Icon = FontAwesome6.Brands.Discord,
-                                Action = () => host.OpenUrlExternally("https://discord.gg/29hMftpNq9"),
+                                Action = () => Game.OpenLink("https://discord.gg/29hMftpNq9"),
                                 Text = "Discord"
                             },
                             new MenuLinkButton
                             {
                                 Icon = FontAwesome6.Brands.GitHub,
-                                Action = () => host.OpenUrlExternally("https://github.com/InventiveRhythm/fluXis"),
+                                Action = () => Game.OpenLink("https://github.com/InventiveRhythm/fluXis"),
                                 Text = "GitHub"
                             },
                             new MenuLinkButton
                             {
                                 Icon = FontAwesome6.Solid.EarthAmericas,
-                                Action = () => host.OpenUrlExternally(api.Endpoint.WebsiteRootUrl),
+                                Action = () => Game.OpenLink(api.Endpoint.WebsiteRootUrl),
                                 Text = "Website"
                             }
                         }
@@ -385,11 +387,10 @@ public partial class MenuScreen : FluXisScreen
         });
     }
 
-    private void continueToPlay() => this.Push(new SelectScreen());
+    private void continueToPlay() => this.Push(new SoloSelectScreen());
     private void continueToMultiplayer() => this.Push(new MultiplayerScreen());
-    private void continueToRankings() => this.Push(new Rankings());
     private void openDashboard() => dashboard.Show();
-    private void continueToBrowse() => this.Push(new MapBrowser());
+    private void continueToBrowse() => browse.Show();
 
     public bool CanPlayAnimation()
     {
@@ -502,7 +503,7 @@ public partial class MenuScreen : FluXisScreen
             maps.CurrentMap = maps.CreateBuiltinMap(Game.CurrentSeason switch
             {
                 Season.Halloween => MapStore.BuiltinMap.Spoophouse,
-                Season.Winter => MapStore.BuiltinMap.Christmashouse,
+                Season.Christmas => MapStore.BuiltinMap.Christmashouse,
                 _ => MapStore.BuiltinMap.Roundhouse
             }).LowestDifficulty;
             clock.Seek(0);

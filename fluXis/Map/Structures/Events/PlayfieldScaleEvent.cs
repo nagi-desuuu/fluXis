@@ -1,3 +1,4 @@
+using System;
 using fluXis.Map.Structures.Bases;
 using fluXis.Screens.Gameplay.Ruleset.Playfields;
 using Newtonsoft.Json;
@@ -26,15 +27,15 @@ public class PlayfieldScaleEvent : IMapEvent, IHasDuration, IHasEasing, IApplica
     [JsonProperty("playfield")]
     public int PlayfieldIndex { get; set; }
 
+    [JsonProperty("subfield")]
+    public int PlayfieldSubIndex { get; set; }
+
     public void Apply(Playfield playfield)
     {
-        var yScale = ScaleY;
-
-        // invert if upscroll
-        if (playfield.IsUpScroll)
-            yScale *= -1;
+        if (!this.AppliesTo(playfield))
+            return;
 
         using (playfield.BeginAbsoluteSequence(Time))
-            playfield.ScaleTo(new Vector2(ScaleX, yScale), Duration, Easing);
+            playfield.TransformTo(nameof(playfield.AnimationScale), new Vector2(ScaleX, ScaleY), Math.Max(Duration, 0), Easing);
     }
 }

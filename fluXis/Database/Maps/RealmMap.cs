@@ -117,7 +117,7 @@ public class RealmMap : RealmObject
             var json = File.ReadAllText(path);
             var hash = MapUtils.GetHash(json);
             var map = json.Deserialize<T>();
-            map.Map = this;
+            map.RealmEntry = this;
             map.Hash = hash;
             return map;
         }
@@ -137,7 +137,6 @@ public class RealmMap : RealmObject
     public virtual Stream GetBackgroundStream()
     {
         var backgrounds = MapSet.Resources?.BackgroundStore;
-        Logger.Log("Backgrounds: " + backgrounds);
         return backgrounds?.GetStream(MapSet.GetPathForFile(Metadata.Background));
     }
 

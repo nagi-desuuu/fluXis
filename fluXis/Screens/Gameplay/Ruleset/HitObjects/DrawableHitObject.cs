@@ -13,7 +13,7 @@ namespace fluXis.Screens.Gameplay.Ruleset.HitObjects;
 public partial class DrawableHitObject : CompositeDrawable
 {
     [Resolved]
-    protected GameplayScreen Screen { get; private set; }
+    protected RulesetContainer Ruleset { get; private set; }
 
     [Resolved]
     protected HitObjectManager ObjectManager { get; private set; }
@@ -31,10 +31,25 @@ public partial class DrawableHitObject : CompositeDrawable
     protected double ScrollVelocityTime { get; private set; }
     protected double ScrollVelocityEndTime { get; private set; }
 
+    protected double TimeDelta => Data.Time - Time.Current;
+
+    protected int VisualLane
+    {
+        get
+        {
+            var lane = Data.Lane;
+
+            while (lane > ObjectManager.KeyCount)
+                lane -= ObjectManager.KeyCount;
+
+            return lane;
+        }
+    }
+
     public FluXisGameplayKeybind Keybind { get; set; }
 
     public virtual bool CanBeRemoved => false;
-    public virtual HitWindows HitWindows => Screen.HitWindows;
+    public virtual HitWindows HitWindows => Ruleset.HitWindows;
 
     public bool Judged { get; private set; }
     public Action<DrawableHitObject, double> OnHit { get; set; }
@@ -84,8 +99,7 @@ public partial class DrawableHitObject : CompositeDrawable
         if (Judged)
             return;
 
-        var offset = Data.Time - Time.Current;
-        CheckJudgement(byUser, offset);
+        CheckJudgement(byUser, TimeDelta);
     }
 
     protected virtual void CheckJudgement(bool byUser, double offset) { }

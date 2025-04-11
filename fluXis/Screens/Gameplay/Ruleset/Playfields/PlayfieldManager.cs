@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Linq;
-using fluXis.Configuration.Experiments;
-using fluXis.Online.API.Models.Maps;
+using fluXis.Map;
+using fluXis.Screens.Gameplay.Audio.Hitsounds;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.IEnumerableExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -12,51 +13,60 @@ namespace fluXis.Screens.Gameplay.Ruleset.Playfields;
 public partial class PlayfieldManager : CompositeDrawable
 {
     [Resolved]
-    private GameplayScreen screen { get; set; }
+    private Hitsounding hitsounding { get; set; }
 
-    public bool InBreak => Playfields.All(p => p.Manager.Break);
-    public bool AnyFailed => Playfields.Any(p => p.HealthProcessor.Failed);
+    public Bindable<bool> InBreak { get; } = new();
+    public bool AnyFailed => Players.Any(p => p.HealthProcessor.Failed);
+
+    public MapInfo MapInfo { get; }
 
     public event Action OnFinish;
     public bool Finished { get; private set; }
 
     public int Count { get; }
-    public Playfield[] Playfields { get; private set; }
 
-    public PlayfieldManager(DualMode mode)
+    public Playfield[] Playfields { get; private set; }
+    public PlayfieldPlayer[] Players { get; private set; }
+
+    public PlayfieldPlayer FirstPlayer => Players[0];
+
+    public PlayfieldManager(MapInfo map)
     {
-        Count = mode > DualMode.Disabled ? 2 : 1;
+        MapInfo = map;
+        Count = map.IsDual ? 2 : 1;
     }
 
     [BackgroundDependencyLoader]
-    private void load(ExperimentConfigManager experiments)
+    private void load()
     {
         RelativeSizeAxes = Axes.Both;
-        screen.Hitsounding.PlayfieldCount = Count;
-
-        var canSeek = experiments.Get<bool>(ExperimentConfig.Seeking);
+        hitsounding.PlayfieldCount = Count;
 
         InternalChild = new GridContainer
         {
             RelativeSizeAxes = Axes.Both,
             Content = new[]
             {
-                Playfields = Enumerable.Range(0, Count)
-                                       .Select(i => new Playfield(i, canSeek))
-                                       .ToArray()
+                Players = Enumerable.Range(0, Count)
+                                    .Select(i => new PlayfieldPlayer(i, MapInfo.ExtraPlayfields))
+                                    .ToArray()
             }
         };
+
+        Playfields = Players.Select(x => x.MainPlayfield).ToArray();
     }
 
-    public bool OnComplete() => Playfields.All(p => p.HealthProcessor.OnComplete());
+    public bool OnComplete() => Players.All(p => p.HealthProcessor.OnComplete());
 
     protected override void Update()
     {
         base.Update();
 
-        Playfields.ForEach(p => p.HealthProcessor.Update());
+        InBreak.Value = Playfields.All(p => p.HitManager.Break);
 
-        if (!Finished && Playfields.All(p => p.Manager.Finished))
+        Players.ForEach(p => p.HealthProcessor.Update(Time.Elapsed));
+
+        if (!Finished && Playfields.All(p => p.HitManager.Finished))
         {
             OnFinish?.Invoke();
             Finished = true;

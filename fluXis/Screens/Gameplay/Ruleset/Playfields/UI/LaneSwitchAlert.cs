@@ -1,8 +1,8 @@
-using System;
+using System.Collections.Generic;
+using System.Linq;
 using fluXis.Configuration;
 using fluXis.Graphics.Sprites;
 using fluXis.Map.Structures.Events;
-using fluXis.Screens.Gameplay.Audio;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -17,20 +17,15 @@ public partial class LaneSwitchAlert : Container
     private FluXisConfig config { get; set; }
 
     [Resolved]
-    private GameplayScreen screen { get; set; }
+    private RulesetContainer ruleset { get; set; }
 
-    [Resolved]
-    private Playfield playfield { get; set; }
+    private IList<LaneSwitchEvent> events => ruleset.MapEvents.LaneSwitchEvents;
 
-    [Resolved]
-    private LaneSwitchManager laneSwitchManager { get; set; }
+    private SpriteIcon leftIcon;
+    private SpriteIcon rightIcon;
 
-    private LaneSwitchEvent currentEvent;
-
-    private readonly SpriteIcon leftIcon;
-    private readonly SpriteIcon rightIcon;
-
-    public LaneSwitchAlert()
+    [BackgroundDependencyLoader]
+    private void load()
     {
         RelativeSizeAxes = Axes.Both;
         Anchor = Anchor.Centre;
@@ -74,58 +69,54 @@ public partial class LaneSwitchAlert : Container
                 }
             }
         };
+
+        build();
     }
 
-    protected override void Update()
+    private void build()
     {
-        if (playfield.Clock is not GameplayClock clock) return;
-        if (screen.IsPaused.Value) return;
+        ClearTransforms();
 
-        if (!config.Get<bool>(FluXisSetting.LaneSwitchAlerts)) return;
+        if (events.Count == 0 || !config.Get<bool>(FluXisSetting.LaneSwitchAlerts))
+            return;
 
-        if (currentEvent == null)
-            currentEvent = laneSwitchManager.Current;
-        else
+        var last = events.First();
+
+        for (int i = 1; i < events.Count; i++)
         {
-            var time = clock.BeatTime;
-            var fadeTime = time / 2;
+            var current = events[i];
 
-            if (Math.Abs(clock.Rate - screen.Rate) >= .1f) return;
-
-            var nextEvent = screen.MapEvents.LaneSwitchEvents.Find(e => e.Time > clock.CurrentTime);
-
-            if (nextEvent == null || nextEvent.Time - clock.CurrentTime > time)
-                return;
-
-            if (currentEvent.Count < nextEvent.Count)
+            if (current.Count != last.Count)
             {
-                leftIcon.X = 0;
-                leftIcon.Rotation = 0;
+                var timing = ruleset.MapInfo.GetTimingPoint(current.Time);
+                var beat = timing.MsPerBeat;
+                var fade = beat / 2f;
 
-                rightIcon.X = 0;
-                rightIcon.Rotation = 0;
+                using (BeginAbsoluteSequence(current.Time - beat))
+                {
+                    leftIcon.FadeIn(fade).Then().FadeOut(fade);
+                    rightIcon.FadeIn(fade).Then().FadeOut(fade);
 
-                leftIcon.FadeIn(fadeTime).Then().FadeOut(fadeTime);
-                leftIcon.MoveToX(-100, time, Easing.OutQuint);
+                    const float pos = 100f;
 
-                rightIcon.FadeIn(fadeTime).Then().FadeOut(fadeTime);
-                rightIcon.MoveToX(100, time, Easing.OutQuint);
-            }
-            else if (currentEvent.Count > nextEvent.Count)
-            {
-                leftIcon.X = -100;
-                leftIcon.Rotation = 180;
-                rightIcon.X = 100;
-                rightIcon.Rotation = 180;
-
-                leftIcon.FadeIn(fadeTime).Then().FadeOut(fadeTime);
-                leftIcon.MoveToX(0, time, Easing.OutQuint);
-
-                rightIcon.FadeIn(fadeTime).Then().FadeOut(fadeTime);
-                rightIcon.MoveToX(0, time, Easing.OutQuint);
+                    if (current.Count > last.Count)
+                    {
+                        leftIcon.RotateTo(0).MoveToX(0)
+                                .MoveToX(-pos, beat, Easing.OutQuint);
+                        rightIcon.RotateTo(0).MoveToX(0)
+                                 .MoveToX(pos, beat, Easing.OutQuint);
+                    }
+                    else
+                    {
+                        leftIcon.RotateTo(180).MoveToX(-pos)
+                                .MoveToX(0, beat, Easing.OutQuint);
+                        rightIcon.RotateTo(180).MoveToX(pos)
+                                 .MoveToX(0, beat, Easing.OutQuint);
+                    }
+                }
             }
 
-            currentEvent = nextEvent;
+            last = current;
         }
     }
 }

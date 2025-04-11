@@ -4,6 +4,7 @@ using fluXis.Map.Structures;
 using fluXis.Map.Structures.Bases;
 using fluXis.Map.Structures.Events;
 using fluXis.Screens.Edit.Tabs.Charting.Points.Entries;
+using fluXis.Screens.Edit.Tabs.Design.Points.Entries;
 using fluXis.Screens.Edit.Tabs.Shared.Points.List;
 
 namespace fluXis.Screens.Edit.Tabs.Charting.Points;
@@ -17,15 +18,15 @@ public partial class ChartingPointsList : PointsList
         Map.TimingPointRemoved += RemovePoint;
         Map.MapInfo.TimingPoints.ForEach(AddPoint);
 
-        Map.ScrollVelocityAdded += AddPoint;
-        Map.ScrollVelocityUpdated += UpdatePoint;
-        Map.ScrollVelocityRemoved += RemovePoint;
-        Map.MapInfo.ScrollVelocities.ForEach(AddPoint);
-
         Map.LaneSwitchEventAdded += AddPoint;
         Map.LaneSwitchEventUpdated += UpdatePoint;
         Map.LaneSwitchEventRemoved += RemovePoint;
         Map.MapEvents.LaneSwitchEvents.ForEach(AddPoint);
+
+        Map.NoteEventAdded += AddPoint;
+        Map.NoteEventUpdated += UpdatePoint;
+        Map.NoteEventRemoved += RemovePoint;
+        Map.MapEvents.NoteEvents.ForEach(AddPoint);
     }
 
     protected override PointListEntry CreateEntryFor(ITimedObject obj)
@@ -33,15 +34,16 @@ public partial class ChartingPointsList : PointsList
         return obj switch
         {
             TimingPoint timing => new TimingPointEntry(timing),
-            ScrollVelocity scroll => new ScrollVelocityEntry(scroll),
             LaneSwitchEvent lane => new LaneSwitchEntry(lane),
+            NoteEvent note => new NoteEntry(note),
             _ => null
         };
     }
 
-    protected override IEnumerable<AddButtonEntry> CreateAddEntries() => new AddButtonEntry[]
+    protected override IEnumerable<DropdownEntry> CreateDropdownEntries() => new DropdownEntry[]
     {
-        new("Timing Point", FluXisColors.TimingPoint, () => Create(new TimingPoint())),
-        new("Scroll Velocity", FluXisColors.ScrollVelocity, () => Create(new ScrollVelocity()))
+        new("Timing Point", FluXisColors.TimingPoint, () => Create(new TimingPoint()), x => x is TimingPoint),
+        new("Lane Switch", FluXisColors.LaneSwitch, () => Create(new LaneSwitchEvent { Count = Map.RealmMap.KeyCount }), x => x is LaneSwitchEvent),
+        new("Note", FluXisColors.Note, () => Create(new NoteEvent()), x => x is NoteEvent),
     };
 }

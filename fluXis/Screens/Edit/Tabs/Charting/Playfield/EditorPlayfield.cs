@@ -13,6 +13,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Audio;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Input;
 using osuTK;
 
 namespace fluXis.Screens.Edit.Tabs.Charting.Playfield;
@@ -29,20 +30,36 @@ public partial class EditorPlayfield : Container, ITimePositionProvider
     private EditorClock clock { get; set; }
 
     [Resolved]
+    private Hitsounding hitsounding { get; set; }
+
+    [Resolved]
     private FluXisConfig config { get; set; }
 
     public event Action<string> HitSoundPlayed;
 
-    public EditorHitObjectContainer HitObjectContainer { get; private set; } = new();
+    public bool CursorInPlacementArea => ReceivePositionalInputAt(inputManager.CurrentState.Mouse.Position);
+    public int Index { get; }
+
+    private DependencyContainer dependencies;
+    private InputManager inputManager;
+
+    public EditorHitObjectContainer HitObjectContainer { get; } = new();
     public EditorEffectContainer Effects { get; private set; }
     private WaveformGraph waveform;
 
     private Sample hitSound;
-    private Hitsounding hitsounding;
+
+    public EditorPlayfield(int idx)
+    {
+        Index = idx;
+    }
 
     [BackgroundDependencyLoader]
     private void load(Bindable<Waveform> waveformBind, ISampleStore samples)
     {
+        dependencies.CacheAs(this);
+        dependencies.CacheAs(HitObjectContainer);
+
         Width = EditorHitObjectContainer.NOTEWIDTH * map.RealmMap.KeyCount;
         RelativeSizeAxes = Axes.Y;
         Anchor = Origin = Anchor.Centre;
@@ -51,11 +68,6 @@ public partial class EditorPlayfield : Container, ITimePositionProvider
 
         InternalChildren = new Drawable[]
         {
-            hitsounding = new Hitsounding(map.RealmMap.MapSet, map.MapInfo.HitSoundFades, clock.RateBindable)
-            {
-                DirectVolume = true,
-                Clock = clock
-            },
             new Stage(),
             waveform = new WaveformGraph
             {
@@ -80,14 +92,21 @@ public partial class EditorPlayfield : Container, ITimePositionProvider
         settings.WaveformOpacity.BindValueChanged(opacity => waveform.FadeTo(opacity.NewValue, 200), true);
     }
 
+    protected override void LoadComplete()
+    {
+        base.LoadComplete();
+
+        inputManager = GetContainingInputManager();
+    }
+
     protected override void Update()
     {
         base.Update();
 
-        float songLengthInPixels = .5f * (clock.TrackLength * settings.Zoom);
-        float songTimeInPixels = (float)(-EditorHitObjectContainer.HITPOSITION - .5f * (-(clock.CurrentTime + ChartingContainer.WAVEFORM_OFFSET) * settings.Zoom));
+        var songLengthInPixels = .5f * (clock.TrackLength * settings.Zoom);
+        var songTimeInPixels = (float)(-EditorHitObjectContainer.HITPOSITION - .5f * (-(clock.CurrentTime + ChartingContainer.WAVEFORM_OFFSET) * settings.Zoom));
 
-        waveform.Width = songLengthInPixels;
+        waveform.Width = (float)songLengthInPixels;
         waveform.Y = songTimeInPixels;
 
         if (hitSound != null)
@@ -110,10 +129,18 @@ public partial class EditorPlayfield : Container, ITimePositionProvider
         }
 
         var channel = hitsounding.GetSample(sound);
+
+        if (channel is null)
+            return;
+
         channel.Play();
         HitSoundPlayed?.Invoke(channel.SampleName);
     }
 
+    public float PositionAtTime(double time) => HitObjectContainer.PositionAtTime(time);
     public double TimeAtScreenSpacePosition(Vector2 pos) => HitObjectContainer.TimeAtScreenSpacePosition(pos);
     public Vector2 ScreenSpacePositionAtTime(double time, int lane) => HitObjectContainer.ScreenSpacePositionAtTime(time, lane);
+
+    protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
+        => dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
 }

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using fluXis.Graphics;
 using fluXis.Graphics.Sprites;
 using fluXis.Graphics.UserInterface.Buttons;
 using fluXis.Graphics.UserInterface.Color;
@@ -44,16 +43,10 @@ public partial class EditorBottomBar : Container
             RelativeSizeAxes = Axes.Both,
             Children = new Drawable[]
             {
-                new Container
+                new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    EdgeEffect = FluXisStyles.ShadowMediumNoOffset,
-                    Masking = true,
-                    Child = new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = FluXisColors.Background2
-                    },
+                    Colour = FluXisColors.Background2
                 },
                 new GridContainer
                 {
@@ -129,21 +122,33 @@ public partial class EditorBottomBar : Container
                                         var clone = map.MapInfo.DeepClone();
                                         clone.HitObjects = clone.HitObjects.Where(o => o.Time > startTime).ToList();
 
-                                        var shouldAutoPlay = GetContainingInputManager().CurrentState.Keyboard.ControlPressed;
-
                                         var mods = new List<IMod>();
+                                        var input = GetContainingInputManager()?.CurrentState.Keyboard;
+                                        var shouldAutoPlay = false;
 
-                                        if (shouldAutoPlay)
-                                            mods.Add(new AutoPlayMod());
-                                        else
-                                            mods.Add(new NoFailMod());
+                                        if (input is not null)
+                                        {
+                                            shouldAutoPlay = input.ControlPressed;
+                                            var shouldApplyRate = input.ShiftPressed;
+
+                                            if (shouldAutoPlay)
+                                                mods.Add(new AutoPlayMod());
+                                            else
+                                                mods.Add(new NoFailMod());
+
+                                            if (shouldApplyRate)
+                                            {
+                                                var rate = clock.Rate;
+                                                mods.Add(new RateMod { Rate = (float)rate });
+                                            }
+                                        }
 
                                         editor.Push(new GameplayLoader(map.RealmMap, mods, () =>
                                         {
                                             if (shouldAutoPlay)
-                                                return new EditorAutoPlaytestScreen(map.RealmMap, clone, startTime);
+                                                return new EditorAutoPlaytestScreen(map.RealmMap, clone, startTime, mods);
 
-                                            return new EditorPlaytestScreen(map.RealmMap, clone, startTime);
+                                            return new EditorPlaytestScreen(map.RealmMap, clone, startTime, mods);
                                         }));
                                     }
                                 }

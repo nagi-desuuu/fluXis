@@ -36,6 +36,7 @@ public partial class GlobalKeybindContainer : RealmKeyBindingContainer<FluXisGlo
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.O), FluXisGlobalKeybind.ToggleSettings),
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.Shift, InputKey.S), FluXisGlobalKeybind.OpenSkinEditor),
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.D), FluXisGlobalKeybind.ToggleDashboard),
+        new KeyBinding(new KeyCombination(InputKey.Control, InputKey.B), FluXisGlobalKeybind.ToggleBrowse),
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.H), FluXisGlobalKeybind.Home),
         new KeyBinding(InputKey.Delete, FluXisGlobalKeybind.Delete),
         new KeyBinding(InputKey.F5, FluXisGlobalKeybind.MusicPrevious),
@@ -43,12 +44,16 @@ public partial class GlobalKeybindContainer : RealmKeyBindingContainer<FluXisGlo
         new KeyBinding(InputKey.F7, FluXisGlobalKeybind.MusicNext),
         new KeyBinding(InputKey.F8, FluXisGlobalKeybind.ToggleMusicPlayer),
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.T), FluXisGlobalKeybind.ToggleToolbar),
+        new KeyBinding(new KeyCombination(InputKey.Control, InputKey.P), FluXisGlobalKeybind.ToggleProfile),
+        new KeyBinding(InputKey.F9, FluXisGlobalKeybind.ToggleChat),
+
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.Minus), FluXisGlobalKeybind.DecreaseRate),
         new KeyBinding(new KeyCombination(InputKey.Control, InputKey.Plus), FluXisGlobalKeybind.IncreaseRate),
-        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Left), FluXisGlobalKeybind.VolumeDecrease),
-        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Right), FluXisGlobalKeybind.VolumeIncrease),
-        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Up), FluXisGlobalKeybind.VolumePreviousCategory),
-        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Down), FluXisGlobalKeybind.VolumeNextCategory),
+
+        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Down), FluXisGlobalKeybind.VolumeDecrease),
+        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Up), FluXisGlobalKeybind.VolumeIncrease),
+        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Left), FluXisGlobalKeybind.VolumePreviousCategory),
+        new KeyBinding(new KeyCombination(InputKey.Alt, InputKey.Right), FluXisGlobalKeybind.VolumeNextCategory),
         new KeyBinding(new KeyCombination(InputKey.S, InputKey.E, InputKey.X), FluXisGlobalKeybind.Funny)
     };
 
@@ -88,6 +93,7 @@ public enum FluXisGlobalKeybind
     ToggleSettings,
     OpenSkinEditor,
     ToggleDashboard,
+    ToggleBrowse,
     Home,
     Delete,
     MusicPrevious,
@@ -95,6 +101,8 @@ public enum FluXisGlobalKeybind
     MusicNext,
     ToggleMusicPlayer,
     ToggleToolbar,
+    ToggleProfile,
+    ToggleChat,
 
     // SongSelect Keybinds
     DecreaseRate,

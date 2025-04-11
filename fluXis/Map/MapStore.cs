@@ -93,8 +93,6 @@ public partial class MapStore : Component
     {
         files = storage.GetStorageForDirectory("maps");
 
-        Logger.Log("Loading mapsets...");
-
         resources = new MapSetResources
         {
             BackgroundStore = backgroundStore,
@@ -111,8 +109,6 @@ public partial class MapStore : Component
 
             foreach (var set in sets)
                 AddMapSet(set.Detach());
-
-            Logger.Log($"Loaded {MapSets.Count} mapsets.");
         });
     }
 
@@ -120,7 +116,7 @@ public partial class MapStore : Component
     {
         base.LoadComplete();
 
-        MapSetBindable.BindValueChanged(e => Logger.Log($"Changed selected mapset to {e.NewValue?.Metadata.Title} - {e.NewValue?.Metadata.Artist}", LoggingTarget.Runtime, LogLevel.Debug), true);
+        MapSetBindable.BindValueChanged(e => Logger.Log($"Changed selected mapset to {e.NewValue?.Metadata.SortingTitle} - {e.NewValue?.Metadata.SortingArtist}", LoggingTarget.Runtime, LogLevel.Debug), true);
     }
 
     /// <summary>
@@ -223,6 +219,9 @@ public partial class MapStore : Component
 
     public RealmMapSet GetFromGuid(Guid guid) => MapSets.FirstOrDefault(set => set.ID == guid);
     public RealmMapSet GetFromGuid(string guid) => GetFromGuid(Guid.Parse(guid));
+
+    [CanBeNull]
+    public RealmMap GetMapFromGuid(string guid) => GetMapFromGuid(Guid.Parse(guid));
 
     [CanBeNull]
     public RealmMap GetMapFromGuid(Guid guid)
@@ -382,12 +381,12 @@ public partial class MapStore : Component
 
         var notification = new TaskNotificationData
         {
-            Text = $"{set.Metadata.Title} - {set.Metadata.Artist}",
+            Text = $"{set.Metadata.SortingTitle} - {set.Metadata.SortingArtist}",
             TextWorking = "Updating...",
             TextFinished = "Done! Click to view."
         };
 
-        Logger.Log($"Updating mapset: {set.Metadata.Title} - {set.Metadata.Artist}", LoggingTarget.Network);
+        Logger.Log($"Updating mapset: {set.Metadata.SortingTitle} - {set.Metadata.SortingArtist}", LoggingTarget.Network);
 
         var status = new DownloadStatus(set.OnlineID);
 
@@ -409,7 +408,7 @@ public partial class MapStore : Component
             {
                 try
                 {
-                    Logger.Log($"Finished downloading mapset: {set.Metadata.Title} - {set.Metadata.Artist}", LoggingTarget.Network);
+                    Logger.Log($"Finished downloading mapset: {set.Metadata.SortingTitle} - {set.Metadata.SortingArtist}", LoggingTarget.Network);
                     var data = req.ResponseStream;
 
                     if (data == null)
@@ -622,7 +621,9 @@ public partial class MapStore : Component
             Metadata = new RealmMapMetadata
             {
                 Title = map.Metadata.Title,
+                TitleRomanized = map.Metadata.SortingTitle, // returns `TitleRomanized` if not null, else `Title`
                 Artist = map.Metadata.Artist,
+                ArtistRomanized = map.Metadata.SortingArtist,
                 Mapper = map.Metadata.Mapper,
                 Source = map.Metadata.Source,
                 Tags = map.Metadata.Tags,
@@ -640,7 +641,7 @@ public partial class MapStore : Component
             HealthDifficulty = map.HealthDifficulty
         };
 
-        string path = MapFiles.GetFullPath(map.MapSet.GetPathForFile(map.FileName));
+        string path = MapFiles.GetFullPath(map.MapSet.GetPathForFile(realmMap.FileName));
         File.WriteAllText(path, info.Serialize());
         return addDifficultyToSet(set, realmMap);
     }

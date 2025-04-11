@@ -33,7 +33,6 @@ using fluXis.Online.Fluxel;
 using fluXis.Overlay.Notifications;
 using fluXis.Replays;
 using fluXis.Scoring;
-using fluXis.Scoring.Processing.Health;
 using fluXis.Screens.Gameplay.Audio;
 using fluXis.Screens.Gameplay.Audio.Hitsounds;
 using fluXis.Screens.Gameplay.HUD;
@@ -45,6 +44,7 @@ using fluXis.Screens.Gameplay.Ruleset;
 using fluXis.Screens.Gameplay.Ruleset.Playfields;
 using fluXis.Screens.Gameplay.UI;
 using fluXis.Screens.Gameplay.UI.Menus;
+using fluXis.Screens.Intro;
 using fluXis.Screens.Result;
 using fluXis.Skinning.Default;
 using fluXis.Storyboards;
@@ -52,6 +52,7 @@ using fluXis.Storyboards.Drawables;
 using fluXis.Utils;
 using fluXis.Utils.Extensions;
 using osu.Framework.Allocation;
+using osu.Framework.Audio.Track;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.IEnumerableExtensions;
 using osu.Framework.Graphics;
@@ -74,18 +75,18 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
     public override float BackgroundDim => backgroundDim?.Value ?? .4f;
     public override bool ShowToolbar => false;
     public override bool AllowMusicControl => false;
-    public override bool ShowCursor => PlayfieldManager.Playfields[0].HealthProcessor.Failed || IsPaused.Value || CursorVisible;
+    public override bool ShowCursor => PlayfieldManager.AnyFailed || IsPaused.Value || CursorVisible;
     public override bool ApplyValuesAfterLoad => true;
     public override bool AllowExit => false;
 
     protected virtual double GameplayStartTime => 0;
-    protected virtual bool InstantlyExitOnPause => false;
     protected virtual bool AllowRestart => true;
-    public virtual bool AllowReverting => false;
-    public virtual bool FadeBackToGlobalClock => true;
-    public virtual bool SubmitScore => true;
+    protected virtual bool AllowPausing => true;
+    protected virtual bool DisplayHUD => true;
+    protected virtual bool InstantlyExitOnPause => false;
+    protected virtual bool SubmitScore => true;
     protected virtual bool UseGlobalOffset => true;
-    public virtual APIUser CurrentPlayer => api.User.Value;
+    public virtual bool FadeBackToGlobalClock => true;
 
     protected bool CursorVisible { get; set; }
 
@@ -127,10 +128,6 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
     public GameplayClock GameplayClock { get; private set; }
     public Action<double, double> OnSeek { get; set; }
 
-    public GameplayInput Input { get; private set; }
-    public HitWindows HitWindows { get; private set; }
-    public ReleaseWindows ReleaseWindows { get; private set; }
-
     public Action OnRestart { get; set; }
     private ReplayRecorder replayRecorder;
 
@@ -147,9 +144,11 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
     private GlobalBackground background;
     private BackgroundVideo backgroundVideo;
     private GameplayClockContainer clockContainer;
-    public PlayfieldManager PlayfieldManager { get; private set; }
     private Container hud { get; set; }
     private ScoreSubmissionOverlay scoreSubmissionOverlay;
+
+    public RulesetContainer RulesetContainer { get; private set; }
+    public PlayfieldManager PlayfieldManager { get; private set; }
 
     private FailMenu failMenu;
     private FullComboOverlay fcOverlay;
@@ -176,7 +175,7 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
     protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent) => dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
 
     [BackgroundDependencyLoader]
-    private void load()
+    private void load(ITrackStore tracks)
     {
         dependencies.CacheAs(this);
 
@@ -201,38 +200,35 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
             return;
         }
 
-        MapEvents = Map.GetMapEvents(Mods);
         Map.Sort();
+        MapEvents = Map.GetMapEvents(Mods);
         getKeyCountFromEvents();
 
         dependencies.CacheAs(Samples);
         dependencies.CacheAs<ICustomColorProvider>(Map.Colors);
 
-        var difficulty = Math.Clamp(Map.AccuracyDifficulty == 0 ? 8 : Map.AccuracyDifficulty, 1, 10);
-        difficulty *= Mods.Any(m => m is HardMod) ? 1.5f : 1;
-
-        HitWindows = new HitWindows(difficulty, Rate);
-        ReleaseWindows = new ReleaseWindows(difficulty, Rate);
-
-        dependencies.CacheAs(Input = GetInput());
-
         var shaders = buildShaders();
         var transforms = shaders.TransformHandlers.ToList();
 
-        clockContainer = new GameplayClockContainer(RealmMap, Map, new Drawable[]
+        clockContainer = new GameplayClockContainer(tracks, RealmMap, Map, new Drawable[]
         {
-            dependencies.CacheAsAndReturn(new LaneSwitchManager(MapEvents.LaneSwitchEvents, RealmMap.KeyCount, Map.NewLaneSwitchLayout) { Mirror = Mods.Any(m => m is MirrorMod) }),
             new FlashOverlay(MapEvents.FlashEvents.Where(e => e.InBackground).ToList()),
-            dependencies.CacheAsAndReturn(PlayfieldManager = new PlayfieldManager(Map.DualMode)),
+            RulesetContainer = CreateRuleset(),
             replayRecorder = new ReplayRecorder()
         }.Concat(transforms), UseGlobalOffset);
 
-        var storyboard = Map.CreateDrawableStoryboard() ?? new DrawableStoryboard(new Storyboard(), ".");
+        RulesetContainer.ParentClock = clockContainer.GameplayClock;
+        RulesetContainer.IsPaused.BindTo(IsPaused);
+        RulesetContainer.ShakeTarget = this;
+        RulesetContainer.OnDeath += OnDeath;
+
+        dependencies.Cache(PlayfieldManager = RulesetContainer.PlayfieldManager);
 
         dependencies.Cache(GameplayClock = clockContainer.GameplayClock);
         dependencies.CacheAs<IBeatSyncProvider>(GameplayClock);
-
         LoadComponent(GameplayClock);
+
+        var storyboard = Map.CreateDrawableStoryboard() ?? new DrawableStoryboard(Map, new Storyboard(), ".");
         LoadComponent(storyboard);
 
         InternalChildren = new Drawable[]
@@ -243,9 +239,8 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                 Origin = Anchor.Centre,
                 Children = new Drawable[]
                 {
-                    Input,
                     Samples,
-                    Hitsounding = new Hitsounding(RealmMap.MapSet, Map.HitSoundFades, GameplayClock.RateBindable) { Clock = GameplayClock },
+                    dependencies.CacheAsAndReturn(Hitsounding = new Hitsounding(RealmMap.MapSet, Map.HitSoundFades, GameplayClock.RateBindable) { Clock = GameplayClock }),
                     shaders.AddContent(new[]
                     {
                         new DrawSizePreservingFillContainer
@@ -263,10 +258,7 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                                 },
                                 backgroundVideo = new BackgroundVideo
                                 {
-                                    ShowDim = false,
-                                    Clock = GameplayClock,
-                                    Map = RealmMap,
-                                    Info = Map
+                                    Clock = GameplayClock
                                 },
                                 new DrawableStoryboardWrapper(GameplayClock, storyboard, StoryboardLayer.Background),
                                 new Box
@@ -282,9 +274,10 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                         hud = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
+                            Alpha = DisplayHUD ? 1 : 0,
                             Children = new Drawable[]
                             {
-                                new GameplayHUD(),
+                                new GameplayHUD(RulesetContainer),
                                 new ModsDisplay()
                             }
                         },
@@ -292,13 +285,14 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                         CreateTextOverlay(),
                         new DangerHealthOverlay(),
                         new DrawableStoryboardWrapper(GameplayClock, storyboard, StoryboardLayer.Overlay),
+                        new PulseEffect(MapEvents.PulseEvents) { Clock = GameplayClock },
                         new FlashOverlay(MapEvents.FlashEvents.Where(e => !e.InBackground).ToList()) { Clock = GameplayClock },
                         new SkipOverlay(),
                     }),
                     failMenu = new FailMenu(),
                     fcOverlay = new FullComboOverlay(),
                     quickActionOverlay = new QuickActionOverlay(),
-                    new GameplayTouchInput(),
+                    new GameplayTouchInput(RulesetContainer.Input),
                     new PauseMenu()
                 },
             },
@@ -306,12 +300,12 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
             Debug = new DebugText()
         };
 
-        clockContainer.Add(new BeatPulseContainer(MapEvents.BeatPulseEvents, keybindContainer));
+        clockContainer.Add(new BeatPulseManager(Map, MapEvents.BeatPulseEvents, keybindContainer));
 
-        backgroundVideo.LoadVideo();
+        backgroundVideo.LoadVideo(Map);
 
-        Input.OnPress += replayRecorder.PressKey;
-        Input.OnRelease += replayRecorder.ReleaseKey;
+        RulesetContainer.Input.OnPress += replayRecorder.PressKey;
+        RulesetContainer.Input.OnRelease += replayRecorder.ReleaseKey;
     }
 
     private ShaderStackContainer buildShaders()
@@ -385,30 +379,10 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
         AllowOverlays.Value = IsPaused.Value;
     }
 
+    protected virtual RulesetContainer CreateRuleset() => new(Map, MapEvents, Mods) { CurrentPlayer = api.User.Value ?? APIUser.Default };
     protected virtual MapInfo LoadMap() => RealmMap.GetMapInfo(Mods);
-    protected virtual GameplayInput GetInput() => new(this, RealmMap.KeyCount, Map.IsDual);
     protected virtual Drawable CreateTextOverlay() => Empty();
     protected virtual UserActivity GetPlayingActivity() => new UserActivity.Playing(this, RealmMap);
-
-    public HealthProcessor CreateHealthProcessor()
-    {
-        var processor = null as HealthProcessor;
-
-        var difficulty = Math.Clamp(Map.HealthDifficulty == 0 ? 8 : Map.HealthDifficulty, 1, 10);
-        difficulty *= Mods.Any(m => m is HardMod) ? 1.2f : 1f;
-
-        if (Mods.Any(m => m is HardMod)) processor = new DrainHealthProcessor(difficulty);
-        else if (Mods.Any(m => m is EasyMod)) processor = new RequirementHeathProcessor(difficulty) { HealthRequirement = EasyMod.HEALTH_REQUIREMENT };
-
-        processor ??= new HealthProcessor(difficulty);
-        processor.Screen = this;
-        processor.OnFail = OnDeath;
-
-        foreach (var mod in Mods.OfType<IApplicableToHealthProcessor>())
-            mod.Apply(processor);
-
-        return processor;
-    }
 
     protected override void Update()
     {
@@ -420,18 +394,21 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                 backgroundVideo.Start();
         }
 
-        var hudWasVisible = hudVisible;
-
-        hudVisible = hudVisibility.Value switch
+        if (DisplayHUD)
         {
-            HudVisibility.Hidden => false,
-            HudVisibility.ShowDuringBreaks => PlayfieldManager.InBreak,
-            HudVisibility.ShowDuringGameplay => !IsPaused.Value && !PlayfieldManager.InBreak,
-            _ => true
-        };
+            var hudWasVisible = hudVisible;
 
-        if (hudVisible != hudWasVisible)
-            hud.FadeTo(hudVisible ? 1 : 0, 500, Easing.OutQuint);
+            hudVisible = hudVisibility.Value switch
+            {
+                HudVisibility.Hidden => false,
+                HudVisibility.ShowDuringBreaks => PlayfieldManager.InBreak.Value,
+                HudVisibility.ShowDuringGameplay => !IsPaused.Value && !PlayfieldManager.InBreak.Value,
+                _ => true
+            };
+
+            if (hudVisible != hudWasVisible)
+                hud.FadeTo(hudVisible ? 1 : 0, 500, Easing.OutQuint);
+        }
 
         base.Update();
     }
@@ -443,7 +420,7 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
         if (failed)
             return;
 
-        PlayfieldManager.Playfields.ForEach(p => p.HealthProcessor.Kill());
+        PlayfieldManager.Players.ForEach(p => p.HealthProcessor.Kill());
         failed = true;
         failMenu.Show();
         GameplayClock.RateTo(Rate * .75f, 2000, Easing.OutQuart);
@@ -451,7 +428,7 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
 
     protected virtual void End()
     {
-        var field = PlayfieldManager.Playfields[0];
+        var field = PlayfieldManager.FirstPlayer;
 
         // no fail was enabled, but the player never actually failed
         // so, we just remove the mod to make the score count normally
@@ -485,7 +462,7 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
             var score = field.ScoreProcessor.ToScoreInfo();
             score.ScrollSpeed = Config.Get<float>(FluXisSetting.ScrollSpeed);
 
-            var screen = new SoloResults(RealmMap, score, CurrentPlayer);
+            var screen = new SoloResults(RealmMap, score, api.User.Value ?? APIUser.Default);
             screen.OnRestart = OnRestart;
             if (bestScore != null) screen.ComparisonScore = bestScore.ToScoreInfo();
 
@@ -529,7 +506,6 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                 Directory.CreateDirectory(folder);
 
             var path = Path.Combine(folder, $"{scoreID}.frp");
-            Logger.Log($"Saving replay to {path}", LoggingTarget.Runtime, LogLevel.Debug);
             File.WriteAllText(path, replay.Serialize());
 
             return replay;
@@ -596,7 +572,8 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
 
         IsPaused.BindValueChanged(_ => UpdatePausedState(), true);
 
-        this.ScaleTo(1.2f).FadeOut();
+        if (e.Last is not IntroAnimation)
+            this.ScaleTo(1.2f).FadeOut();
 
         using (BeginDelayedSequence(ENTER_DELAY))
             this.ScaleTo(1f, MOVE_DURATION, Easing.OutQuint).FadeIn(FADE_DURATION);
@@ -620,7 +597,7 @@ public partial class GameplayScreen : FluXisScreen, IKeyBindingHandler<FluXisGlo
                 quickActionOverlay.IsHolding = true;
                 return true;
 
-            case FluXisGlobalKeybind.GameplayPause:
+            case FluXisGlobalKeybind.GameplayPause when AllowPausing:
                 if (PlayfieldManager.AnyFailed) return false;
 
                 if (InstantlyExitOnPause)

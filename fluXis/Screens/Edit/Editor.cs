@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -36,6 +37,8 @@ using fluXis.Screens.Edit.Tabs;
 using fluXis.Screens.Edit.Tabs.Charting;
 using fluXis.Screens.Edit.Tabs.Storyboarding;
 using fluXis.Screens.Edit.TabSwitcher;
+using fluXis.Screens.Gameplay.Audio.Hitsounds;
+using fluXis.Skinning.Default;
 using fluXis.Storyboards;
 using fluXis.Utils;
 using fluXis.Utils.Extensions;
@@ -177,7 +180,7 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
             editorMap.RealmMap.MapSet.Resources = resources;
         }
 
-        editorMap.MapInfo ??= new EditorMap.EditorMapInfo(new MapMetadata { Mapper = editorMap.RealmMap.Metadata.Mapper }) { NewLaneSwitchLayout = true };
+        editorMap.MapInfo ??= new EditorMap.EditorMapInfo(new MapMetadata { Mapper = editorMap.RealmMap.Metadata.Mapper }) { NewLaneSwitchLayout = true, RealmEntry = editorMap.RealmMap };
         editorMap.MapInfo.MapEvents ??= new MapEvents();
         editorMap.MapInfo.Storyboard ??= new Storyboard();
 
@@ -188,6 +191,7 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
 
         dependencies.CacheAs(this);
         dependencies.CacheAs(editorMap);
+        dependencies.CacheAs<ICustomColorProvider>(editorMap.MapInfo.Colors);
         dependencies.CacheAs(Waveform = new Bindable<Waveform>());
         dependencies.CacheAs(actionStack = new EditorActionStack(editorMap) { NotificationManager = notifications });
         dependencies.CacheAs(settings = new EditorSettings
@@ -205,6 +209,17 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
 
         dependencies.CacheAs(new EditorSnapProvider(editorMap, settings, clock));
 
+        var tabList = new List<EditorTab>
+        {
+            new SetupTab(),
+            new ChartingTab(),
+            new DesignTab(),
+            // new WipEditorTab(FontAwesome6.Solid.Music, "Hitsounding", "Soon you'll be able to edit volume of hitsounds and other stuff here.")
+        };
+
+        if (experiments.Get<bool>(ExperimentConfig.StoryboardTab))
+            tabList.Add(new StoryboardTab());
+
         InternalChild = new EditorKeybindingContainer(this, realm)
         {
             Children = new Drawable[]
@@ -212,6 +227,11 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
                 lowPass = new AudioFilter(audioManager.TrackMixer),
                 highPass = new AudioFilter(audioManager.TrackMixer, BQFType.HighPass),
                 clock,
+                dependencies.CacheAsAndReturn(new Hitsounding(editorMap.RealmMap.MapSet, editorMap.MapInfo.HitSoundFades, clock.RateBindable)
+                {
+                    DirectVolume = true,
+                    Clock = clock
+                }),
                 new FluXisContextMenuContainer
                 {
                     RelativeSizeAxes = Axes.Both,
@@ -229,14 +249,7 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
                                     RelativeSizeAxes = Axes.Both,
                                     Anchor = Anchor.Centre,
                                     Origin = Anchor.Centre,
-                                    Children = new EditorTab[]
-                                    {
-                                        new SetupTab(),
-                                        new ChartingTab(),
-                                        experiments.Get<bool>(ExperimentConfig.DesignTab) ? new DesignTab() : new WipEditorTab(FontAwesome6.Solid.Palette, "Design", "Soon you'll be able to edit effects and other stuff here."),
-                                        experiments.Get<bool>(ExperimentConfig.StoryboardTab) ? new StoryboardTab() : new WipEditorTab(FontAwesome6.Solid.PaintBrush, "Storyboard", "Soon you'll be able to create storyboards here."),
-                                        new WipEditorTab(FontAwesome6.Solid.Music, "Hitsounding", "Soon you'll be able to edit volume of hitsounds and other stuff here.")
-                                    }
+                                    Children = tabList
                                 }
                             },
                             menuBar = new EditorMenuBar
@@ -300,12 +313,17 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
                                             new("Paste", FontAwesome6.Solid.Paste, () => ChartingContainer?.Paste()),
                                             new FluXisMenuSpacer(),
                                             new("Apply Offset", FontAwesome6.Solid.Clock, applyOffset),
-                                            new("Flip Selection", FontAwesome6.Solid.LeftRight, () => ChartingContainer?.FlipSelection()) { Enabled = () => ChartingContainer?.CanFlipSelection ?? false },
-                                            new("Shuffle Selection", FontAwesome6.Solid.Shuffle, () => ChartingContainer?.ShuffleSelection()) { Enabled = () => ChartingContainer?.CanShuffleSelection ?? false },
+                                            new("Flip Selection", FontAwesome6.Solid.LeftRight, () => ChartingContainer?.FlipSelection())
+                                                { Enabled = () => ChartingContainer?.CanFlipSelection ?? false },
+                                            new("Shuffle Selection", FontAwesome6.Solid.Shuffle, () => ChartingContainer?.ShuffleSelection())
+                                                { Enabled = () => ChartingContainer?.CanShuffleSelection ?? false },
                                             new("Re-snap all notes", FontAwesome6.Solid.ArrowsRotate, () => ChartingContainer?.ReSnapAll()),
                                             new FluXisMenuSpacer(),
                                             new("Delete", FontAwesome6.Solid.Trash, () => ChartingContainer?.BlueprintContainer.SelectionHandler.DeleteSelected()),
-                                            new("Select all", FontAwesome6.Solid.ObjectGroup, () => ChartingContainer?.BlueprintContainer.SelectAll())
+                                            new("Select all", FontAwesome6.Solid.ObjectGroup, () => ChartingContainer?.BlueprintContainer.SelectAll()),
+                                            new FluXisMenuSpacer(),
+                                            new("Invert mouse scroll direction", FontAwesome6.Solid.UpDown, () => settings.InvertedScroll.Value = !settings.InvertedScroll.Value)
+                                                { IsActive = () => settings.InvertedScroll.Value },
                                         }
                                     },
                                     new("View", FontAwesome6.Solid.Eye)
@@ -341,9 +359,11 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
                                                 Items = new FluXisMenuItem[]
                                                 {
                                                     new("0%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 0) { IsActive = () => settings.WaveformOpacity.Value == 0 },
-                                                    new("25%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 0.25f) { IsActive = () => settings.WaveformOpacity.Value == 0.25f },
+                                                    new("25%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 0.25f)
+                                                        { IsActive = () => settings.WaveformOpacity.Value == 0.25f },
                                                     new("50%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 0.5f) { IsActive = () => settings.WaveformOpacity.Value == 0.5f },
-                                                    new("75%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 0.75f) { IsActive = () => settings.WaveformOpacity.Value == 0.75f },
+                                                    new("75%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 0.75f)
+                                                        { IsActive = () => settings.WaveformOpacity.Value == 0.75f },
                                                     new("100%", FontAwesome6.Solid.Percent, () => settings.WaveformOpacity.Value = 1) { IsActive = () => settings.WaveformOpacity.Value == 1 }
                                                 }
                                             },
@@ -362,8 +382,8 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
                                             new("Show sample on notes", FontAwesome6.Solid.LayerGroup, () => settings.ShowSamples.Value = !settings.ShowSamples.Value)
                                                 { IsActive = () => settings.ShowSamples.Value },
                                             new FluXisMenuSpacer(),
-                                            new("Invert scroll direction", FontAwesome6.Solid.UpDown, () => settings.InvertedScroll.Value = !settings.InvertedScroll.Value)
-                                                { IsActive = () => settings.InvertedScroll.Value }
+                                            new("Force 16:9 Ratio", FontAwesome6.Solid.RectangleWide, () => settings.ForceAspectRatio.Toggle())
+                                                { IsActive = () => settings.ForceAspectRatio.Value },
                                         }
                                     },
                                     new("Timing", FontAwesome6.Solid.Clock)
@@ -678,12 +698,6 @@ public partial class Editor : FluXisScreen, IKeyBindingHandler<FluXisGlobalKeybi
         if (!canSave)
         {
             notifications.SendError("Map is from another game!");
-            return false;
-        }
-
-        if (editorMap.MapInfo.HitObjects.Count == 0)
-        {
-            notifications.SendError("Map has no hit objects!");
             return false;
         }
 

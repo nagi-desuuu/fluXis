@@ -85,11 +85,23 @@ public partial class SetupTab : EditorTab
                                                             Placeholder = "...",
                                                             OnChange = value => map.MapInfo.Metadata.Title = map.RealmMap.Metadata.Title = value
                                                         },
+                                                        new SetupTextBox("Title (Romanized)")
+                                                        {
+                                                            Default = map.MapInfo.Metadata.TitleRomanized ?? map.MapInfo.Metadata.Title,
+                                                            Placeholder = "...",
+                                                            OnChange = value => map.MapInfo.Metadata.TitleRomanized = map.RealmMap.Metadata.TitleRomanized = value
+                                                        },
                                                         new SetupTextBox("Artist")
                                                         {
                                                             Default = map.MapInfo.Metadata.Artist,
                                                             Placeholder = "...",
                                                             OnChange = value => map.MapInfo.Metadata.Artist = map.RealmMap.Metadata.Artist = value
+                                                        },
+                                                        new SetupTextBox("Artist (Romanized)")
+                                                        {
+                                                            Default = map.MapInfo.Metadata.ArtistRomanized ?? map.MapInfo.Metadata.Artist,
+                                                            Placeholder = "...",
+                                                            OnChange = value => map.MapInfo.Metadata.ArtistRomanized = map.RealmMap.Metadata.ArtistRomanized = value
                                                         },
                                                         new SetupTextBox("Mapper")
                                                         {
@@ -149,6 +161,12 @@ public partial class SetupTab : EditorTab
                                                                 map.MapInfo.NewLaneSwitchLayout = value;
                                                                 map.MapEvents.LaneSwitchEvents.ForEach(map.Update);
                                                             }
+                                                        },
+                                                        new SetupSlider<int>("Extra Playfields", 0, 5, 1)
+                                                        {
+                                                            Default = map.MapInfo.ExtraPlayfields,
+                                                            Format = "0",
+                                                            OnChange = value => map.MapInfo.ExtraPlayfields = value
                                                         }
                                                     }
                                                 }
@@ -225,12 +243,12 @@ public partial class SetupTab : EditorTab
                                                 {
                                                     Entries = new Drawable[]
                                                     {
-                                                        new SetupSlider("Accuracy")
+                                                        new SetupSlider<float>("Accuracy", 1, 10, 0.1f)
                                                         {
                                                             Default = map.MapInfo.AccuracyDifficulty,
                                                             OnChange = value => map.MapInfo.AccuracyDifficulty = map.RealmMap.AccuracyDifficulty = value
                                                         },
-                                                        new SetupSlider("Health")
+                                                        new SetupSlider<float>("Health", 1, 10, 0.1f)
                                                         {
                                                             Default = map.MapInfo.HealthDifficulty,
                                                             OnChange = value => map.MapInfo.HealthDifficulty = map.RealmMap.HealthDifficulty = value

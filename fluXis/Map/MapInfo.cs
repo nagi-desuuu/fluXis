@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -49,14 +50,27 @@ public class MapInfo
     [JsonProperty("editor-time")]
     public long TimeInEditor { get; set; }
 
+    [JsonProperty("extra-playfields")]
+    public int ExtraPlayfields
+    {
+        get => extraPlayfields;
+        set => extraPlayfields = Math.Clamp(value, 0, 5);
+    }
+
+    [JsonIgnore]
+    private int extraPlayfields;
+
     [JsonIgnore]
     public bool IsDual => DualMode > DualMode.Disabled;
+
+    [JsonIgnore]
+    public bool IsSplit => DualMode == DualMode.Separate;
 
     [JsonIgnore]
     public double StartTime => HitObjects[0].Time;
 
     [JsonIgnore]
-    public double EndTime => HitObjects[^1].EndTime;
+    public double EndTime => HitObjects.Count == 0 ? 1000 : HitObjects[^1].EndTime;
 
     [JsonIgnore]
     public int MaxCombo
@@ -81,7 +95,7 @@ public class MapInfo
 
     [CanBeNull]
     [JsonIgnore]
-    public RealmMap Map { get; set; }
+    public RealmMap RealmEntry { get; set; }
 
     [JsonIgnore]
     public string Hash { get; set; }
@@ -192,10 +206,10 @@ public class MapInfo
     {
         var events = new T();
 
-        if (Map == null)
+        if (RealmEntry == null)
             return events;
 
-        var effectFile = Map.MapSet.GetPathForFile(EffectFile);
+        var effectFile = RealmEntry.MapSet.GetPathForFile(EffectFile);
 
         if (string.IsNullOrEmpty(effectFile))
             return events;
@@ -211,7 +225,7 @@ public class MapInfo
     [CanBeNull]
     public virtual Storyboard GetStoryboard()
     {
-        var file = Map?.MapSet.GetPathForFile(StoryboardFile);
+        var file = RealmEntry?.MapSet.GetPathForFile(StoryboardFile);
 
         if (string.IsNullOrEmpty(file))
             return null;
@@ -234,7 +248,7 @@ public class MapInfo
         if (sb == null)
             return null;
 
-        var folderName = Map?.MapSet.ID.ToString();
+        var folderName = RealmEntry?.MapSet.ID.ToString();
 
         if (string.IsNullOrEmpty(folderName))
             return null;
@@ -244,12 +258,12 @@ public class MapInfo
         if (!Directory.Exists(path))
             return null;
 
-        return new DrawableStoryboard(sb, MapFiles.GetFullPath(Map!.MapSet.ID.ToString()));
+        return new DrawableStoryboard(this, sb, MapFiles.GetFullPath(RealmEntry!.MapSet.ID.ToString()));
     }
 
     public virtual Stream GetVideoStream()
     {
-        var file = Map?.MapSet.GetPathForFile(VideoFile);
+        var file = RealmEntry?.MapSet.GetPathForFile(VideoFile);
 
         if (string.IsNullOrEmpty(file))
             return null;

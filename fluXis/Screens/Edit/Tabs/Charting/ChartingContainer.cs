@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using fluXis.Graphics.Background;
 using fluXis.Graphics.Sprites;
 using fluXis.Map.Structures;
+using fluXis.Online.API.Models.Maps;
 using fluXis.Overlay.Notifications;
 using fluXis.Screens.Edit.Actions.Notes;
 using fluXis.Screens.Edit.Actions.Notes.Shortcuts;
@@ -21,6 +23,8 @@ using fluXis.Utils;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
@@ -43,9 +47,7 @@ public partial class ChartingContainer : EditorTabContainer, IKeyBindingHandler<
 
     public IReadOnlyList<EffectTool> EffectTools { get; } = new EffectTool[]
     {
-        new LaneSwitchTool(),
-        new FlashTool(),
-        new ShakeTool()
+        new LaneSwitchTool()
     };
 
     public static readonly int[] SNAP_DIVISORS = { 1, 2, 3, 4, 6, 8, 12, 16 };
@@ -72,10 +74,13 @@ public partial class ChartingContainer : EditorTabContainer, IKeyBindingHandler<
     private ToolboxHitsoundCategory toolboxHitsounds;
     private PointsSidebar sidebar;
 
-    public EditorPlayfield Playfield { get; private set; }
+    private SpriteStack<BlurableBackground> backgrounds;
+    private Box backgroundDim;
+
+    public EditorPlayfield[] Playfields { get; private set; }
     public ChartingBlueprintContainer BlueprintContainer { get; private set; }
-    public IEnumerable<EditorHitObject> HitObjects => Playfield.HitObjectContainer.HitObjects;
-    public bool CursorInPlacementArea => Playfield.ReceivePositionalInputAt(inputManager.CurrentState.Mouse.Position);
+    public IEnumerable<EditorHitObject> HitObjects => Playfields.SelectMany(x => x.HitObjectContainer.HitObjects);
+    public bool CursorInPlacementArea => Playfields.Any(p => p.CursorInPlacementArea);
 
     public bool CanFlipSelection => BlueprintContainer.SelectionHandler.SelectedObjects.Any(x => x is HitObject);
     public bool CanShuffleSelection => BlueprintContainer.SelectionHandler.SelectedObjects.Any(x => x is HitObject);
@@ -84,23 +89,42 @@ public partial class ChartingContainer : EditorTabContainer, IKeyBindingHandler<
     {
         Editor.ChartingContainer = this;
 
+        Playfields = Enumerable.Range(0, Map.MapInfo.DualMode == DualMode.Separate ? 2 : 1).Select(x => new EditorPlayfield(x)).ToArray();
+
         dependencies.Cache(this);
-        dependencies.CacheAs(Playfield = new EditorPlayfield());
-        dependencies.CacheAs<ITimePositionProvider>(Playfield);
-        dependencies.CacheAs(Playfield.HitObjectContainer);
+        dependencies.CacheAs<ITimePositionProvider>(Playfields[0]);
         dependencies.CacheAs(sidebar = new ChartingSidebar());
     }
 
-    protected override IEnumerable<Drawable> CreateContent()
+    protected override void LoadComplete()
     {
-        return new Drawable[]
-        {
-            Playfield,
-            BlueprintContainer = new ChartingBlueprintContainer { ChartingContainer = this }
-        };
+        base.LoadComplete();
+
+        inputManager = GetContainingInputManager();
+
+        Map.BackgroundChanged += updateBackground;
+        Editor.BindableBackgroundDim.BindValueChanged(e => backgroundDim.FadeTo(e.NewValue, 300), true);
+        Editor.BindableBackgroundBlur.BindValueChanged(_ => updateBackground(), true);
     }
 
-    protected override EditorToolbox CreateToolbox() => new()
+    protected override IEnumerable<Drawable> CreateContent() => new Drawable[]
+    {
+        backgrounds = new SpriteStack<BlurableBackground> { AutoFill = false },
+        backgroundDim = new Box
+        {
+            RelativeSizeAxes = Axes.Both,
+            Colour = Colour4.Black,
+            Alpha = 0
+        },
+        new GridContainer
+        {
+            RelativeSizeAxes = Axes.Both,
+            Content = new[] { Playfields }
+        },
+        BlueprintContainer = new ChartingBlueprintContainer { ChartingContainer = this }
+    };
+
+    protected override Drawable CreateLeftSide() => new EditorToolbox()
     {
         Categories = new ToolboxCategory[]
         {
@@ -123,11 +147,9 @@ public partial class ChartingContainer : EditorTabContainer, IKeyBindingHandler<
 
     protected override PointsSidebar CreatePointsSidebar() => sidebar;
 
-    protected override void LoadComplete()
+    private void updateBackground()
     {
-        base.LoadComplete();
-
-        inputManager = GetContainingInputManager();
+        backgrounds.Add(new BlurableBackground(Map.RealmMap, Editor.BackgroundBlur));
     }
 
     protected override bool OnKeyDown(KeyDownEvent e)
@@ -191,35 +213,6 @@ public partial class ChartingContainer : EditorTabContainer, IKeyBindingHandler<
         }
     }
 
-    protected override bool OnScroll(ScrollEvent e)
-    {
-        var scroll = e.ShiftPressed ? e.ScrollDelta.X : e.ScrollDelta.Y;
-        int delta = scroll > 0 ? 1 : -1;
-
-        if (e.ControlPressed)
-        {
-            settings.Zoom += delta * .1f;
-            settings.Zoom = Math.Clamp(settings.Zoom, .5f, 5f);
-        }
-        else if (e.ShiftPressed)
-        {
-            var snaps = SNAP_DIVISORS;
-            var index = Array.IndexOf(snaps, settings.SnapDivisor);
-            index += delta;
-
-            if (index < 0)
-                index = snaps.Length - 1;
-            else if (index >= snaps.Length)
-                index = 0;
-
-            settings.SnapDivisor = snaps[index];
-        }
-        else
-            base.OnScroll(e);
-
-        return true;
-    }
-
     private void placeNote(int lane)
     {
         if (lane > Map.RealmMap.KeyCount)
@@ -246,9 +239,7 @@ public partial class ChartingContainer : EditorTabContainer, IKeyBindingHandler<
     }
 
     protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
-    {
-        return dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
-    }
+        => dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
 
     public override bool OnPressed(KeyBindingPressEvent<EditorKeybinding> e)
     {

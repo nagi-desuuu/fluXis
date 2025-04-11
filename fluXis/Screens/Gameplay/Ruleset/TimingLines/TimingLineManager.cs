@@ -16,7 +16,7 @@ public partial class TimingLineManager : CompositeDrawable
     [Resolved]
     private Playfield playfield { get; set; }
 
-    private HitObjectColumn column => playfield.Manager[0];
+    private HitObjectColumn column => playfield.HitManager[0];
 
     private Bindable<bool> showTimingLines;
 
@@ -35,7 +35,7 @@ public partial class TimingLineManager : CompositeDrawable
     private void load(FluXisConfig config)
     {
         showTimingLines = config.GetBindable<bool>(FluXisSetting.TimingLines);
-        createLines(playfield.Map);
+        createLines(playfield.MapInfo);
     }
 
     protected override void LoadComplete()
@@ -57,6 +57,9 @@ public partial class TimingLineManager : CompositeDrawable
             var target = i + 1 < map.TimingPoints.Count ? map.TimingPoints[i + 1].Time : map.EndTime;
             var increase = point.Signature * point.MsPerBeat;
             var position = point.Time;
+
+            if (increase < .1f)
+                continue;
 
             while (position < target)
             {

@@ -14,15 +14,15 @@ public class ExperimentConfigManager : IniConfigManager<ExperimentConfig>
 
     protected override void InitialiseDefaults()
     {
-        SetDefault(ExperimentConfig.DesignTab, false);
+#if CLOSED_TESTING
+        SetDefault(ExperimentConfig.StoryboardTab, true);
+#else
         SetDefault(ExperimentConfig.StoryboardTab, false);
-        SetDefault(ExperimentConfig.Seeking, false);
+#endif
     }
 }
 
 public enum ExperimentConfig
 {
-    DesignTab,
-    StoryboardTab,
-    Seeking
+    StoryboardTab
 }

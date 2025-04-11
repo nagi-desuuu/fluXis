@@ -47,6 +47,9 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
     private FluXisSpriteText artist;
     private MusicPlayerButton pausePlay;
 
+    private Container gradient;
+    private Container metadataContainer;
+
     protected override bool StartHidden => true;
 
     [BackgroundDependencyLoader]
@@ -75,14 +78,16 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
             new Container
             {
                 RelativeSizeAxes = Axes.Both,
-                Padding = new MarginPadding { Horizontal = 150, Bottom = 200, Top = 20 },
-                Child = content = new ClickableContainer
+                Padding = new MarginPadding { Horizontal = 150, Bottom = 150, Top = 20 },
+                Child = content = new HoverClickContainer
                 {
                     RelativeSizeAxes = Axes.Both,
                     Masking = true,
                     CornerRadius = rounding,
                     Y = -50,
                     EdgeEffect = FluXisStyles.ShadowLarge,
+                    HoverAction = showMetadata,
+                    HoverLostAction = hideMetadata,
                     Children = new Drawable[]
                     {
                         new Box
@@ -96,10 +101,10 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
                             RelativeSizeAxes = Axes.Both,
                             Anchor = Anchor.Centre,
                             Origin = Anchor.Centre,
-                            ShowDim = false,
-                            Clock = globalClock
+                            Clock = globalClock,
+                            PlaybackStarted = hideMetadata
                         },
-                        new Container
+                        gradient = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
                             Alpha = .5f,
@@ -122,10 +127,11 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
                             }
                         },
                         new MusicVisualiser(),
-                        new Container
+                        metadataContainer = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
                             Padding = new MarginPadding { Horizontal = inner_padding, Bottom = inner_padding, Top = rounding + inner_padding },
+                            AlwaysPresent = true,
                             Children = new Drawable[]
                             {
                                 new FillFlowContainer
@@ -246,13 +252,15 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
 
         video.Stop();
 
-        title.Text = next.Metadata.Title;
-        artist.Text = next.Metadata.Artist;
+        title.Text = next.Metadata.LocalizedTitle;
+        artist.Text = next.Metadata.LocalizedArtist;
+
+        showMetadata();
 
         LoadComponentAsync(new MapBackground(next) { RelativeSizeAxes = Axes.Both }, background =>
         {
-            background.FadeInFromZero(400);
             backgrounds.Add(background, 400);
+            background.Show();
         });
 
         LoadComponentAsync(new MapCover(next.MapSet)
@@ -262,18 +270,32 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
             Origin = Anchor.Centre
         }, cover =>
         {
-            cover.FadeInFromZero(400);
             covers.Add(cover, 400);
+            cover.Show();
         });
 
         Task.Run(() =>
         {
-            video.Map = next;
-            video.Info = next.GetMapInfo();
-
-            video.LoadVideo();
+            video.LoadVideo(next.GetMapInfo());
             ScheduleAfterChildren(video.Start);
         });
+    }
+
+    private void showMetadata()
+    {
+        metadataContainer.ClearTransforms();
+        metadataContainer.FadeIn(200);
+
+        gradient.ClearTransforms();
+        gradient.FadeTo(.5f, 200);
+    }
+
+    private void hideMetadata()
+    {
+        if (!video.IsPlaying) return;
+
+        metadataContainer.Delay(1000).FadeOut(800);
+        gradient.Delay(1000).FadeOut(800);
     }
 
     protected override void Update()
@@ -287,6 +309,7 @@ public partial class MusicPlayer : OverlayContainer, IKeyBindingHandler<FluXisGl
     {
         this.FadeIn(200);
         content.MoveToY(0, 400, Easing.OutQuint);
+        showMetadata();
     }
 
     protected override void PopOut()

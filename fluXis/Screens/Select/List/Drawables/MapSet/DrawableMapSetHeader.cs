@@ -68,8 +68,8 @@ public partial class DrawableMapSetHeader : Container, IHasContextMenu
     [Resolved]
     private MapStore maps { get; set; }
 
-    [Resolved]
     [CanBeNull]
+    [Resolved(CanBeNull = true)]
     private FluXisGame game { get; set; }
 
     private readonly DrawableMapSetItem parent;
@@ -189,6 +189,14 @@ public partial class DrawableMapSetHeader : Container, IHasContextMenu
         contentLoader.DelayedLoadComplete += content => content.FadeInFromZero(300);
     }
 
+    protected override void LoadComplete()
+    {
+        base.LoadComplete();
+
+        Hide();
+        FinishTransforms();
+    }
+
     private Drawable getContent()
     {
         var content = new Container
@@ -246,14 +254,14 @@ public partial class DrawableMapSetHeader : Container, IHasContextMenu
                                     new TruncatingText
                                     {
                                         WebFontSize = 20,
-                                        Text = mapset.Metadata.Title,
+                                        Text = mapset.Metadata.LocalizedTitle,
                                         RelativeSizeAxes = Axes.X,
                                         Shadow = true
                                     },
                                     new TruncatingText
                                     {
                                         WebFontSize = 14,
-                                        Text = mapset.Metadata.Artist,
+                                        Text = mapset.Metadata.LocalizedArtist,
                                         RelativeSizeAxes = Axes.X,
                                         Shadow = true
                                     }
@@ -343,6 +351,7 @@ public partial class DrawableMapSetHeader : Container, IHasContextMenu
     public override void Show()
     {
         this.TransformTo(nameof(contentWrapperPadding), 27f, 400, Easing.OutQuint);
+        arrowContainer.ScaleTo(1, 400, Easing.OutQuint);
         colorBrighten.FadeIn(200);
         outlineBrighten.FadeIn(200);
     }
@@ -350,6 +359,7 @@ public partial class DrawableMapSetHeader : Container, IHasContextMenu
     public override void Hide()
     {
         this.TransformTo(nameof(contentWrapperPadding), 10f, 400, Easing.OutQuint);
+        arrowContainer.ScaleTo(0.8f, 400, Easing.OutQuint);
         colorBrighten.FadeOut(200);
         outlineBrighten.FadeOut(200);
     }

@@ -24,7 +24,10 @@ public partial class HitObjectColumn : Container<DrawableHitObject>
     private Playfield playfield { get; set; }
 
     [Resolved]
-    private GameplayScreen screen { get; set; }
+    private PlayfieldPlayer player { get; set; }
+
+    [Resolved]
+    private RulesetContainer ruleset { get; set; }
 
     public Stack<HitObject> PastHitObjects { get; } = new();
     public List<HitObject> FutureHitObjects { get; } = new();
@@ -53,7 +56,7 @@ public partial class HitObjectColumn : Container<DrawableHitObject>
     private static int[] snaps { get; } = { 48, 24, 16, 12, 8, 6, 4, 3 };
     private Dictionary<int, int> snapIndices { get; } = new();
 
-    private JudgementProcessor judgementProcessor => playfield.JudgementProcessor;
+    private JudgementProcessor judgementProcessor => player.JudgementProcessor;
     private DependencyContainer dependencies;
 
     public HitObjectColumn(MapInfo map, HitObjectManager hitManager, int lane)
@@ -114,11 +117,11 @@ public partial class HitObjectColumn : Container<DrawableHitObject>
         foreach (var hitObject in HitObjects.Where(h => h.CanBeRemoved).ToList())
             removeHitObject(hitObject);
 
-        while (screen.AllowReverting && PastHitObjects.Count > 0)
+        while (ruleset.AllowReverting && PastHitObjects.Count > 0)
         {
             var result = PastHitObjects.Peek().Result;
 
-            if (result is null || Clock.CurrentTime >= result.Time)
+            if (result is null || Clock.CurrentTime >= result.Value.Time)
                 break;
 
             revertHitObject(PastHitObjects.Pop());
@@ -197,10 +200,14 @@ public partial class HitObjectColumn : Container<DrawableHitObject>
 
     private void revertHitObject(HitObject hit)
     {
-        if (hit.HoldEndResult is not null)
-            judgementProcessor.RevertResult(hit.HoldEndResult);
+        if (!playfield.IsSubPlayfield)
+        {
+            if (hit.HoldEndResult is not null)
+                judgementProcessor.RevertResult(hit.HoldEndResult.Value);
 
-        judgementProcessor.RevertResult(hit.Result);
+            if (hit.Result is not null)
+                judgementProcessor.RevertResult(hit.Result.Value);
+        }
 
         var draw = createHitObject(hit);
         HitObjects.Insert(0, draw);
@@ -217,7 +224,9 @@ public partial class HitObjectColumn : Container<DrawableHitObject>
     private void removeHitObject(DrawableHitObject hitObject, bool addToFuture = false)
     {
         if (!addToFuture)
+        {
             hitObject.OnKill();
+        }
 
         hitObject.OnHit -= hit;
 
@@ -233,13 +242,16 @@ public partial class HitObjectColumn : Container<DrawableHitObject>
 
     private void hit(DrawableHitObject hitObject, double difference)
     {
+        if (playfield.IsSubPlayfield)
+            return;
+
         // since judged is only set after hitting the tail this works
         var isHoldEnd = hitObject is DrawableLongNote { Judged: true };
 
-        var hitWindows = isHoldEnd ? screen.ReleaseWindows : screen.HitWindows;
+        var hitWindows = isHoldEnd ? ruleset.ReleaseWindows : ruleset.HitWindows;
         var judgement = hitWindows.JudgementFor(difference);
 
-        if (playfield.HealthProcessor.Failed)
+        if (player.HealthProcessor.Failed)
             return;
 
         var result = new HitResult(Time.Current, difference, judgement);

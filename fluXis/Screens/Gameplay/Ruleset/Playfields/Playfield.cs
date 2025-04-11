@@ -4,9 +4,7 @@ using fluXis.Configuration;
 using fluXis.Database.Maps;
 using fluXis.Map;
 using fluXis.Map.Structures.Events;
-using fluXis.Online.API.Models.Users;
-using fluXis.Scoring.Processing;
-using fluXis.Scoring.Processing.Health;
+using fluXis.Screens.Gameplay.Audio.Hitsounds;
 using fluXis.Screens.Gameplay.Ruleset.HitObjects;
 using fluXis.Screens.Gameplay.Ruleset.Playfields.UI;
 using fluXis.Screens.Gameplay.Ruleset.TimingLines;
@@ -14,7 +12,6 @@ using fluXis.Skinning;
 using fluXis.Utils.Extensions;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
-using osu.Framework.Extensions.IEnumerableExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osuTK;
@@ -27,17 +24,19 @@ public partial class Playfield : Container
     private SkinManager skinManager { get; set; }
 
     [Resolved]
-    private GameplayScreen screen { get; set; }
+    private RulesetContainer ruleset { get; set; }
 
     [Resolved]
-    private GameplaySamples samples { get; set; }
+    private Hitsounding hitsounding { get; set; }
 
     [Resolved]
     private LaneSwitchManager laneSwitchManager { get; set; }
 
     public int Index { get; }
-    private bool canSeek { get; }
-    public override bool RemoveCompletedTransforms => !canSeek;
+    public int SubIndex { get; }
+    public bool IsSubPlayfield => SubIndex > 0;
+
+    public override bool RemoveCompletedTransforms => false;
 
     public float RelativePosition
     {
@@ -48,19 +47,16 @@ public partial class Playfield : Container
         }
     }
 
-    public JudgementProcessor JudgementProcessor { get; } = new();
-    public HealthProcessor HealthProcessor { get; private set; }
-    public ScoreProcessor ScoreProcessor { get; private set; }
-
+    public Stage Stage { get; private set; }
     public FillFlowContainer<Receptor> Receptors { get; private set; }
-    public HitObjectManager Manager { get; private set; }
+    public HitObjectManager HitManager { get; private set; }
 
-    public MapInfo Map => screen.Map;
-    public RealmMap RealmMap => screen.RealmMap;
+    public MapInfo MapInfo => ruleset.MapInfo;
+    public MapEvents MapEvents => ruleset.MapEvents;
+    public RealmMap RealmMap => MapInfo.RealmEntry!;
 
     private DependencyContainer dependencies;
 
-    private Stage stage;
     private Drawable hitline;
     private Drawable topCover;
     private Drawable bottomCover;
@@ -72,10 +68,10 @@ public partial class Playfield : Container
 
     public bool IsUpScroll => scrollDirection.Value == ScrollDirection.Up;
 
-    public Playfield(int idx, bool canSeek)
+    public Playfield(int idx, int sub)
     {
         Index = idx;
-        this.canSeek = canSeek;
+        SubIndex = sub;
     }
 
     [BackgroundDependencyLoader]
@@ -86,6 +82,7 @@ public partial class Playfield : Container
         Anchor = Anchor.Centre;
         Origin = Anchor.Centre;
         AlwaysPresent = true;
+        Alpha = IsSubPlayfield ? 0 : 1; // we start subfields invisible, so that mappers can decide when they should show
 
         topCoverHeight = config.GetBindable<float>(FluXisSetting.LaneCoverTop);
         bottomCoverHeight = config.GetBindable<float>(FluXisSetting.LaneCoverBottom);
@@ -103,21 +100,8 @@ public partial class Playfield : Container
             Padding = new MarginPadding { Bottom = skinManager.SkinJson.GetKeymode(RealmMap.KeyCount).ReceptorOffset }
         };
 
-        JudgementProcessor.AddDependants(new JudgementDependant[]
-        {
-            HealthProcessor = screen.CreateHealthProcessor(),
-            ScoreProcessor = new ScoreProcessor
-            {
-                Player = screen.CurrentPlayer ?? APIUser.Default,
-                HitWindows = screen.HitWindows,
-                Map = RealmMap,
-                MapInfo = Map,
-                Mods = screen.Mods
-            }
-        });
-
         dependencies.CacheAs(this);
-        dependencies.CacheAs(Manager = new HitObjectManager
+        dependencies.CacheAs(HitManager = new HitObjectManager
         {
             AlwaysPresent = true,
             Masking = true
@@ -128,11 +112,10 @@ public partial class Playfield : Container
         InternalChildren = new[]
         {
             new LaneSwitchAlert(),
-            new PulseEffect(),
-            stage = new Stage(),
+            Stage = new Stage(),
             new TimingLineManager(),
-            receptorsFirst ? Receptors : Manager,
-            receptorsFirst ? Manager : Receptors,
+            receptorsFirst ? Receptors : HitManager,
+            receptorsFirst ? HitManager : Receptors,
             hitline = skinManager.GetHitLine().With(d =>
             {
                 d.Width = 1;
@@ -151,59 +134,55 @@ public partial class Playfield : Container
                 }
             },
             new KeyOverlay(),
-            new EventHandler<ShakeEvent>(screen.MapEvents.ShakeEvents, shake => screen.Shake(shake.Duration, shake.Magnitude))
+            new EventHandler<ShakeEvent>(MapEvents.ShakeEvents, shake => ruleset.ShakeTarget.Shake(Math.Max(shake.Duration, 0), shake.Magnitude))
         };
 
-        screen.MapEvents.LayerFadeEvents.Where(x => x.Layer == LayerFadeEvent.FadeLayer.HitObjects).ForEach(e => e.Apply(Manager));
-        screen.MapEvents.LayerFadeEvents.Where(x => x.Layer == LayerFadeEvent.FadeLayer.Stage).ForEach(e => e.Apply(stage));
-        screen.MapEvents.LayerFadeEvents.Where(x => x.Layer == LayerFadeEvent.FadeLayer.Receptors).ForEach(e => e.Apply(Receptors));
-        screen.MapEvents.LayerFadeEvents.Where(x => x.Layer == LayerFadeEvent.FadeLayer.Playfield).ForEach(e => e.Apply(this));
-
-        if (canSeek)
-        {
-            screen.MapEvents.PlayfieldMoveEvents.ForEach(e => e.Apply(this));
-            screen.MapEvents.PlayfieldScaleEvents.ForEach(e => e.Apply(this));
-            screen.MapEvents.PlayfieldRotateEvents.ForEach(e => e.Apply(this));
-            screen.MapEvents.ScrollMultiplyEvents.ForEach(e => e.Apply(Manager));
-            screen.MapEvents.TimeOffsetEvents.ForEach(e => e.Apply(Manager));
-        }
-        else
-        {
-            AddRangeInternal(new Drawable[]
-            {
-                new EventHandler<PlayfieldMoveEvent>(screen.MapEvents.PlayfieldMoveEvents),
-                new EventHandler<PlayfieldScaleEvent>(screen.MapEvents.PlayfieldScaleEvents),
-                new EventHandler<PlayfieldRotateEvent>(screen.MapEvents.PlayfieldRotateEvents),
-                new EventHandler<ScrollMultiplierEvent>(screen.MapEvents.ScrollMultiplyEvents),
-                new EventHandler<TimeOffsetEvent>(screen.MapEvents.TimeOffsetEvents),
-            });
-        }
-    }
-
-    protected override void LoadComplete()
-    {
-        base.LoadComplete();
-
-        JudgementProcessor.ApplyMap(Map);
-        ScoreProcessor.OnComboBreak += samples.Miss;
-
-        scrollDirection.BindValueChanged(_ =>
-        {
-            if (IsUpScroll)
-                Scale *= new Vector2(1, -1);
-        }, true);
+        MapEvents.LayerFadeEvents.ForEach(e => e.Apply(this));
+        MapEvents.PlayfieldMoveEvents.ForEach(e => e.Apply(this));
+        MapEvents.PlayfieldScaleEvents.ForEach(e => e.Apply(this));
+        MapEvents.PlayfieldRotateEvents.ForEach(e => e.Apply(this));
+        MapEvents.ScrollMultiplyEvents.ForEach(e => e.Apply(HitManager));
+        MapEvents.TimeOffsetEvents.ForEach(e => e.Apply(HitManager));
     }
 
     protected override void Update()
     {
+        updatePositionScale();
+
         hitline.Y = -laneSwitchManager.HitPosition;
 
         topCover.Y = (topCoverHeight.Value - 1f) / 2f;
         bottomCover.Y = (1f - bottomCoverHeight.Value) / 2f;
 
-        screen.Hitsounding.PlayfieldPanning.Value = Math.Clamp(RelativePosition * 2 - 1, -1, 1) * hitsoundPanStrength.Value;
+        if (!IsSubPlayfield)
+            hitsounding.PlayfieldPanning.Value = Math.Clamp(RelativePosition * 2 - 1, -1, 1) * hitsoundPanStrength.Value;
     }
 
     protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
         => dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+
+    #region Position
+
+    public float AnimationX { get; set; }
+    public float AnimationY { get; set; }
+    public float AnimationZ { get; set; }
+    public Vector2 AnimationScale { get; set; } = Vector2.One;
+
+    private readonly Vector3 camera = new(0, 0, -100);
+
+    private void updatePositionScale()
+    {
+        var scale = scaleForZ(AnimationZ);
+
+        if (!float.IsFinite(scale))
+            scale = 1;
+
+        var result = (new Vector2(AnimationX, AnimationY) - camera.Xy) * scale + camera.Xy;
+        Position = result;
+        Scale = new Vector2(scale) * AnimationScale * new Vector2(1, IsUpScroll ? -1 : 1);
+    }
+
+    private float scaleForZ(float z) => -camera.Z / Math.Max(1f, z - camera.Z);
+
+    #endregion
 }

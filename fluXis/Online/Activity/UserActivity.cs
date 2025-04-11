@@ -29,6 +29,8 @@ public abstract class UserActivity
         return rpc;
     }
 
+    public virtual void CreateSteam(ISteamManager steam) { }
+
     #region Menus
 
     public class MenuGeneral : UserActivity
@@ -38,6 +40,11 @@ public abstract class UserActivity
             var rpc = base.CreateDiscord();
             rpc.Details = "In the menus";
             return rpc;
+        }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "In the menus");
         }
     }
 
@@ -50,6 +57,11 @@ public abstract class UserActivity
             rpc.LargeImage = "songselect";
             return rpc;
         }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "Selecting a song");
+        }
     }
 
     public class Results : UserActivity
@@ -61,6 +73,11 @@ public abstract class UserActivity
             rpc.LargeImage = "results";
             return rpc;
         }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "Viewing results");
+        }
     }
 
     public class BrowsingMaps : UserActivity
@@ -70,6 +87,11 @@ public abstract class UserActivity
             var rpc = base.CreateDiscord();
             rpc.Details = "Browsing online maps";
             return rpc;
+        }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "Browsing for new maps");
         }
     }
 
@@ -86,6 +108,11 @@ public abstract class UserActivity
             rpc.LargeImage = "playing";
             return rpc;
         }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "Loading...");
+        }
     }
 
     public class Playing : UserActivity
@@ -93,7 +120,7 @@ public abstract class UserActivity
         private GameplayScreen screen { get; }
         private RealmMap map { get; }
 
-        public IMultiplayerRoom Room { get; set; }
+        public MultiplayerRoom Room { get; set; }
 
         [JsonProperty("id")]
         public long MapID => map.OnlineID;
@@ -131,6 +158,11 @@ public abstract class UserActivity
 
             return rpc;
         }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, $"Playing {map.Metadata.SortingTitle} - {map.Metadata.SortingArtist} [{map.Difficulty}]");
+        }
     }
 
     public class Paused : Playing
@@ -143,9 +175,15 @@ public abstract class UserActivity
         public override DiscordRichPresence CreateDiscord()
         {
             var rpc = base.CreateDiscord();
-            rpc.State = $"Paused";
+            rpc.State = "Paused";
             rpc.EndTime = 0;
             return rpc;
+        }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            base.CreateSteam(steam);
+            steam.SetRichPresence(SteamRichPresenceKey.Details, "Paused");
         }
     }
 
@@ -190,6 +228,11 @@ public abstract class UserActivity
             rpc.StartTime = Convert.ToUInt64(OpenTime);
             return rpc;
         }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "Editing");
+        }
     }
 
     public class Modding : Editing
@@ -205,6 +248,11 @@ public abstract class UserActivity
             rpc.Details = "Modding a map";
             return rpc;
         }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "Modding a map");
+        }
     }
 
     #endregion
@@ -213,12 +261,12 @@ public abstract class UserActivity
 
     public class MultiLobby : UserActivity
     {
-        private IMultiplayerRoom room { get; }
+        private MultiplayerRoom room { get; }
 
         [JsonProperty("id")]
         public long RoomID => room.RoomID;
 
-        public MultiLobby(IMultiplayerRoom room)
+        public MultiLobby(MultiplayerRoom room)
         {
             this.room = room;
         }
@@ -232,6 +280,11 @@ public abstract class UserActivity
             rpc.PartySize = room.Participants.Count;
             rpc.PartyMax = Math.Max(8, room.Participants.Count * 2);
             return rpc;
+        }
+
+        public override void CreateSteam(ISteamManager steam)
+        {
+            steam.SetRichPresence(SteamRichPresenceKey.Status, "In a multiplayer lobby");
         }
     }
 

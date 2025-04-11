@@ -1,8 +1,8 @@
-using fluXis.Graphics;
 using fluXis.Graphics.UserInterface.Color;
 using fluXis.Graphics.UserInterface.Menus;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.UserInterface;
 using osuTK;
 
@@ -22,7 +22,6 @@ public partial class EditorMenuBar : FluXisMenu
     private void load()
     {
         MaskingContainer.CornerRadius = 0;
-        MaskingContainer.EdgeEffect = FluXisStyles.ShadowMediumNoOffset;
     }
 
     protected override void UpdateSize(Vector2 newSize)
@@ -39,5 +38,12 @@ public partial class EditorMenuBar : FluXisMenu
             return new DrawableFluXisMenuItem(i, false);
 
         return base.CreateDrawableMenuItem(item);
+    }
+
+    protected override ScrollContainer<Drawable> CreateScrollContainer(Direction direction)
+    {
+        var scroll = base.CreateScrollContainer(direction);
+        scroll.ClampExtension = 0;
+        return scroll;
     }
 }

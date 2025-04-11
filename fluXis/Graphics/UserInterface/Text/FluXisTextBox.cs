@@ -21,9 +21,10 @@ public partial class FluXisTextBox : BasicTextBox
     protected override Color4 InputErrorColour => FluXisColors.ButtonRed;
     protected override float LeftRightPadding => SidePadding;
 
-    public int SidePadding { get; set; } = 5;
+    public int SidePadding { get; init; } = 5;
     public float TextContainerHeight { get; set; } = .75f;
-    public bool IsPassword { get; set; }
+    public bool IsPassword { get; init; }
+    public bool FixedWidth { get; init; }
 
     public Action OnTextChanged { get; set; }
     public Action OnCommitAction { get; set; }
@@ -32,8 +33,6 @@ public partial class FluXisTextBox : BasicTextBox
     public Action OnFocusLostAction { get; set; }
 
     private Container textContainer => TextContainer;
-
-    public Colour4 TextColour { get; set; }
 
     public Colour4 BackgroundInactive
     {
@@ -54,7 +53,6 @@ public partial class FluXisTextBox : BasicTextBox
         CornerRadius = 5;
         Masking = true;
         LengthLimit = 256;
-        TextColour = FluXisColors.Text;
         BackgroundInactive = FluXisColors.Background2;
         BackgroundActive = FluXisColors.Background3;
     }
@@ -141,7 +139,6 @@ public partial class FluXisTextBox : BasicTextBox
     {
         var container = new FallingDownContainer
         {
-            Colour = TextColour,
             Anchor = Anchor.TopLeft,
             Origin = Anchor.TopLeft
         };
@@ -158,7 +155,8 @@ public partial class FluXisTextBox : BasicTextBox
             container.Child = new FluXisSpriteText
             {
                 Text = c.ToString(),
-                FontSize = FontSize
+                FontSize = FontSize,
+                FixedWidth = FixedWidth
             };
         }
 

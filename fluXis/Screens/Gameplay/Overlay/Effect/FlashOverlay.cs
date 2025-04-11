@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using fluXis.Map.Structures.Events;
+using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
@@ -7,39 +9,41 @@ using osuTK;
 
 namespace fluXis.Screens.Gameplay.Overlay.Effect;
 
-public partial class FlashOverlay : Container
+public partial class FlashOverlay : CompositeDrawable
 {
     private List<FlashEvent> flashes { get; }
-    private Box box { get; }
 
     public FlashOverlay(List<FlashEvent> flashes)
     {
         this.flashes = flashes;
+    }
+
+    [BackgroundDependencyLoader]
+    private void load()
+    {
         RelativeSizeAxes = Axes.Both;
         Anchor = Origin = Anchor.Centre;
         Size = new Vector2(2f);
 
-        AddInternal(box = new Box
+        Box box;
+
+        InternalChild = box = new Box
         {
             RelativeSizeAxes = Axes.Both,
             Colour = Colour4.White,
             Alpha = 0
-        });
-    }
+        };
 
-    protected override void Update()
-    {
-        while (flashes.Count > 0 && flashes[0].Time <= Clock.CurrentTime)
+        foreach (var flash in flashes)
         {
-            var flashEvent = flashes[0];
+            using (BeginAbsoluteSequence(flash.Time))
+            {
+                var dur = Math.Max(flash.Duration, 0);
 
-            box.FadeColour(flashEvent.StartColor);
-            box.FadeTo(flashEvent.StartOpacity);
-
-            box.FadeColour(flashEvent.EndColor, flashEvent.Duration, flashEvent.Easing);
-            box.FadeTo(flashEvent.EndOpacity, flashEvent.Duration, flashEvent.Easing);
-
-            flashes.RemoveAt(0);
+                box.FadeColour(flash.StartColor).FadeTo(flash.StartOpacity)
+                   .FadeColour(flash.EndColor, dur, flash.Easing)
+                   .FadeTo(flash.EndOpacity, dur, flash.Easing);
+            }
         }
     }
 }

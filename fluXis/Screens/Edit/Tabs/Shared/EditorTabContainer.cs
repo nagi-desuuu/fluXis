@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using fluXis.Configuration;
+using fluXis.Graphics.UserInterface.Color;
 using fluXis.Screens.Edit.Actions;
 using fluXis.Screens.Edit.Input;
+using fluXis.Screens.Edit.Tabs.Charting;
 using fluXis.Screens.Edit.Tabs.Shared.Points;
-using fluXis.Screens.Edit.Tabs.Shared.Toolbox;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -29,19 +31,22 @@ public abstract partial class EditorTabContainer : CompositeDrawable, IKeyBindin
     protected EditorSettings Settings { get; private set; }
 
     [Resolved]
+    protected FluXisConfig Config { get; private set; }
+
+    [Resolved]
     public EditorActionStack ActionStack { get; private set; }
 
-    private Container content;
-    private Box dim;
-    private EditorToolbox toolbox;
+    protected virtual MarginPadding ContentPadding => new() { Vertical = 16 };
+
     private ClickableContainer sidebarClickHandler;
     private PointsSidebar sidebar;
 
     private double scrollAccumulation;
 
     protected virtual void BeforeLoad() { }
+    protected virtual Container CreateContentContainer() => new() { RelativeSizeAxes = Axes.Both };
     protected abstract IEnumerable<Drawable> CreateContent();
-    protected abstract EditorToolbox CreateToolbox();
+    protected abstract Drawable CreateLeftSide();
     protected abstract PointsSidebar CreatePointsSidebar();
 
     [BackgroundDependencyLoader]
@@ -53,25 +58,47 @@ public abstract partial class EditorTabContainer : CompositeDrawable, IKeyBindin
 
         InternalChildren = new Drawable[]
         {
-            content = new Container
+            new Box
             {
                 RelativeSizeAxes = Axes.Both,
-                ChildrenEnumerable = CreateContent()
+                Colour = FluXisColors.Background2
             },
-            dim = new Box
+            new GridContainer
             {
                 RelativeSizeAxes = Axes.Both,
-                Colour = Colour4.Black.Opacity(.4f),
-                Alpha = 0
-            },
-            toolbox = CreateToolbox(),
-            sidebarClickHandler = new ClickableContainer
-            {
-                RelativeSizeAxes = Axes.Both,
-                Alpha = 0,
-                Action = () => sidebar.OnWrapperClick?.Invoke()
-            },
-            sidebar = CreatePointsSidebar()
+                ColumnDimensions = new Dimension[]
+                {
+                    new(GridSizeMode.AutoSize),
+                    new(),
+                    new(GridSizeMode.AutoSize),
+                },
+                Content = new[]
+                {
+                    new[]
+                    {
+                        CreateLeftSide(),
+                        new Container
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Padding = ContentPadding,
+                            Children = new Drawable[]
+                            {
+                                CreateContentContainer().With(c =>
+                                {
+                                    c.CornerRadius = 12;
+                                    c.Masking = true;
+                                }).WithChildren(CreateContent()),
+                                sidebarClickHandler = new ClickableContainer
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Action = () => sidebar.OnWrapperClick?.Invoke()
+                                }
+                            }
+                        },
+                        sidebar = CreatePointsSidebar()
+                    }
+                }
+            }
         };
     }
 
@@ -79,28 +106,7 @@ public abstract partial class EditorTabContainer : CompositeDrawable, IKeyBindin
     {
         base.LoadComplete();
 
-        toolbox.Expanded.BindValueChanged(_ => Schedule(onSidebarExpand));
-        sidebar.Expanded.BindValueChanged(_ => Schedule(onSidebarExpand));
-
-        void onSidebarExpand()
-        {
-            var showDim = toolbox.Expanded.Value || sidebar.Expanded.Value;
-            dim.FadeTo(showDim ? 1 : 0, 400, Easing.OutCubic);
-
-            var leftSide = toolbox.Expanded.Value;
-            var rightSide = sidebar.Expanded.Value;
-            var bothSides = leftSide && rightSide;
-
-            var offset = bothSides switch
-            {
-                false when leftSide => 40,
-                false when rightSide => -40,
-                _ => 0
-            };
-
-            content.MoveToX(offset, 500, Easing.OutCubic);
-            sidebarClickHandler.FadeTo(rightSide ? 1 : 0);
-        }
+        sidebar.Expanded.BindValueChanged(v => sidebarClickHandler.FadeTo(v.NewValue ? 1 : 0), true);
     }
 
     protected override bool OnKeyDown(KeyDownEvent e)
@@ -124,21 +130,71 @@ public abstract partial class EditorTabContainer : CompositeDrawable, IKeyBindin
     protected override bool OnScroll(ScrollEvent e)
     {
         var scroll = e.ShiftPressed ? e.ScrollDelta.X : e.ScrollDelta.Y;
-        int delta = scroll > 0 ? 1 : -1;
+        int direction = scroll > 0 ? 1 : -1;
 
-        if (scrollAccumulation != 0 && Math.Sign(scrollAccumulation) != delta)
-            scrollAccumulation = delta * (1 - Math.Abs(scrollAccumulation));
-
-        scrollAccumulation += e.ScrollDelta.Y;
-        scrollAccumulation *= Settings.InvertedScroll.Value ? -1 : 1;
-
-        while (Math.Abs(scrollAccumulation) >= 1)
+        var setting = e.ControlPressed switch
         {
-            seek(scrollAccumulation < 0 ? 1 : -1);
-            scrollAccumulation = scrollAccumulation < 0 ? Math.Min(0, scrollAccumulation + 1) : Math.Max(0, scrollAccumulation - 1);
-        }
+            true when e.ShiftPressed => FluXisSetting.EditorControlShiftScrollAction,
+            true => FluXisSetting.EditorControlScrollAction,
+            _ => e.ShiftPressed ? FluXisSetting.EditorShiftScrollAction : FluXisSetting.EditorScrollAction
+        };
+
+        var action = Config.Get<EditorScrollAction>(setting);
+        onScroll(action, direction, direction);
 
         return true;
+    }
+
+    private void onScroll(EditorScrollAction action, int direction, float delta)
+    {
+        switch (action)
+        {
+            case EditorScrollAction.Seek:
+            {
+                if (scrollAccumulation != 0 && Math.Sign(scrollAccumulation) != direction)
+                    scrollAccumulation = direction * (1 - Math.Abs(scrollAccumulation));
+
+                scrollAccumulation += delta;
+                scrollAccumulation *= Settings.InvertedScroll.Value ? -1 : 1;
+
+                while (Math.Abs(scrollAccumulation) >= 1)
+                {
+                    seek(scrollAccumulation < 0 ? 1 : -1);
+                    scrollAccumulation = scrollAccumulation < 0 ? Math.Min(0, scrollAccumulation + 1) : Math.Max(0, scrollAccumulation - 1);
+                }
+
+                break;
+            }
+
+            case EditorScrollAction.Snap:
+            {
+                var snaps = ChartingContainer.SNAP_DIVISORS;
+                var index = Array.IndexOf(snaps, Settings.SnapDivisor);
+                index += direction;
+
+                if (index < 0)
+                    index = snaps.Length - 1;
+                else if (index >= snaps.Length)
+                    index = 0;
+
+                Settings.SnapDivisor = snaps[index];
+                break;
+            }
+
+            case EditorScrollAction.Zoom:
+            {
+                Settings.Zoom += direction * .1f;
+                Settings.Zoom = Math.Clamp(Settings.Zoom, .5f, 5f);
+                break;
+            }
+
+            case EditorScrollAction.Rate:
+                EditorClock.Rate = Math.Clamp(EditorClock.Rate + direction * .05f, .2f, 2f);
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(action), action, null);
+        }
     }
 
     private void seek(int direction)

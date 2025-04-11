@@ -4,8 +4,13 @@ using fluXis.Audio;
 using fluXis.Database.Maps;
 using fluXis.Map;
 using fluXis.Online.Fluxel;
+using fluXis.Overlay.Mouse;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Testing;
+using osu.Framework.Testing.Input;
+using osu.Framework.Utils;
 
 namespace fluXis.Tests;
 
@@ -27,6 +32,25 @@ public partial class FluXisTestScene : TestScene
 
     protected void CreateDummyBeatSync() => TestDependencies.CacheAs<IBeatSyncProvider>(new DummyBeatSyncProvider());
     protected void CreateDummyAmplitude() => TestDependencies.CacheAs<IAmplitudeProvider>(new DummyAmplitudeProvider());
+
+    protected RealmMapSet CreateDummySet()
+    {
+        var map = RealmMap.CreateNew();
+        var set = map.MapSet;
+
+        set.ID = Guid.NewGuid();
+        map.ID = Guid.NewGuid();
+
+        set.Metadata.Title = set.ID.ToString();
+        set.Metadata.Artist = "some artist";
+        set.Metadata.Mapper = "some mapper";
+        map.Difficulty = map.ID.ToString();
+        map.Filters = new RealmMapFilters { NotesPerSecond = RNG.NextSingle(1, 30) };
+        map.OnlineID = RNG.Next(1, 10000);
+        map.Status = (MapStatus)RNG.Next((int)MapStatus.Local, (int)MapStatus.Pure + 1);
+
+        return set;
+    }
 
     protected virtual RealmMap GetTestMap(MapStore maps)
     {
@@ -77,5 +101,36 @@ public partial class FluXisTestScene : TestScene
     private class DummyAmplitudeProvider : IAmplitudeProvider
     {
         public float[] Amplitudes { get; } = new float[256];
+    }
+}
+
+public partial class FluXisManualInputTestScene : FluXisTestScene
+{
+    protected override Container<Drawable> Content => content;
+    private Container content { get; }
+
+    protected virtual bool DisplayCursor => false;
+
+    protected ManualInputManager Input { get; }
+
+    protected FluXisManualInputTestScene()
+    {
+        var main = content = new Container { RelativeSizeAxes = Axes.Both };
+
+        if (DisplayCursor)
+        {
+            var cursor = new GlobalCursorOverlay { RelativeSizeAxes = Axes.Both };
+            cursor.Add(content = new GlobalTooltipContainer(cursor.Cursor) { RelativeSizeAxes = Axes.Both });
+            main.Add(cursor);
+        }
+
+        base.Content.AddRange(new Drawable[]
+        {
+            Input = new ManualInputManager
+            {
+                UseParentInput = true,
+                Child = main
+            }
+        });
     }
 }

@@ -2,14 +2,12 @@
 using System.Linq;
 using fluXis.Map.Structures;
 using fluXis.Map.Structures.Bases;
-using fluXis.Map.Structures.Events;
 using fluXis.Screens.Edit.Actions;
 using fluXis.Screens.Edit.Actions.Notes;
 using fluXis.Screens.Edit.Blueprints;
 using fluXis.Screens.Edit.Blueprints.Selection;
 using fluXis.Screens.Edit.Tabs.Charting.Blueprints.Placement;
 using fluXis.Screens.Edit.Tabs.Charting.Blueprints.Selection;
-using fluXis.Screens.Edit.Tabs.Charting.Blueprints.Selection.Effect;
 using fluXis.Screens.Edit.Tabs.Charting.Tools;
 using JetBrains.Annotations;
 using osu.Framework.Allocation;
@@ -68,16 +66,10 @@ public partial class ChartingBlueprintContainer : BlueprintContainer<ITimedObjec
         map.HitObjectAdded += AddBlueprint;
         map.HitObjectRemoved += RemoveBlueprint;
 
-        map.FlashEventAdded += AddBlueprint;
-        map.FlashEventRemoved += RemoveBlueprint;
-
         SelectionBlueprints.StartBulk();
 
         foreach (var hitObject in ChartingContainer.HitObjects)
             AddBlueprint(hitObject.Data);
-
-        foreach (var flash in ChartingContainer.Playfield.Effects.Flashes)
-            AddBlueprint(flash.FlashEvent);
 
         SelectionBlueprints.EndBulk();
     }
@@ -122,11 +114,16 @@ public partial class ChartingBlueprintContainer : BlueprintContainer<ITimedObjec
 
     private void updatePlacementPosition()
     {
-        var hitObjectContainer = ChartingContainer.Playfield.HitObjectContainer;
+        var playfield = ChartingContainer.Playfields.FirstOrDefault(p => p.CursorInPlacementArea);
+
+        if (playfield is null)
+            return;
+
+        var container = playfield.HitObjectContainer;
         var mousePosition = InputManager.CurrentState.Mouse.Position;
 
-        var time = snaps.SnapTime(hitObjectContainer.TimeAtScreenSpacePosition(mousePosition));
-        var lane = hitObjectContainer.LaneAtScreenSpacePosition(mousePosition);
+        var time = snaps.SnapTime(container.TimeAtScreenSpacePosition(mousePosition));
+        var lane = container.LaneAtScreenSpacePosition(mousePosition);
         currentPlacement.UpdatePlacement(time, lane);
     }
 
@@ -150,14 +147,6 @@ public partial class ChartingBlueprintContainer : BlueprintContainer<ITimedObjec
                 blueprint = hit.LongNote ? new LongNoteSelectionBlueprint(hit) : new SingleNoteSelectionBlueprint(hit);
                 blueprint.Drawable = hitDrawable;
                 break;
-
-            case FlashEvent flash:
-                var flashDrawable = ChartingContainer.Playfield.Effects.Flashes.FirstOrDefault(d => d.FlashEvent == obj);
-                if (flashDrawable == null) return null;
-
-                blueprint = new FlashSelectionBlueprint(flash);
-                blueprint.Drawable = flashDrawable;
-                break;
         }
 
         return blueprint;
@@ -178,14 +167,16 @@ public partial class ChartingBlueprintContainer : BlueprintContainer<ITimedObjec
         var delta = e.ScreenSpaceMousePosition - e.ScreenSpaceMouseDownPosition;
 
         var position = DraggedBlueprintsPositions.First() + delta;
-        var time = ChartingContainer.Playfield.HitObjectContainer.TimeAtScreenSpacePosition(position);
-        int lane = ChartingContainer.Playfield.HitObjectContainer.LaneAtScreenSpacePosition(position);
+        var time = ChartingContainer.Playfields[0].HitObjectContainer.TimeAtScreenSpacePosition(position);
+        int lane = ChartingContainer.Playfields[0].HitObjectContainer.LaneAtScreenSpacePosition(position);
         var snappedTime = snaps.SnapTime(time, true);
 
         var timeDelta = snappedTime - DraggedBlueprints.First().Object.Time;
         int laneDelta = 0;
 
+#pragma warning disable CA2021 // Rethrow to preserve stack details
         var hitBlueprints = DraggedBlueprints.OfType<NoteSelectionBlueprint>().ToArray();
+#pragma warning restore CA2021
 
         if (hitBlueprints.Length != 0)
         {

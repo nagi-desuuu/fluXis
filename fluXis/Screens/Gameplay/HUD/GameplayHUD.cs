@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using fluXis.Screens.Gameplay.HUD.Components;
+using fluXis.Screens.Gameplay.Ruleset;
 using fluXis.Screens.Gameplay.Ruleset.Playfields;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -15,8 +16,7 @@ namespace fluXis.Screens.Gameplay.HUD;
 
 public partial class GameplayHUD : Container
 {
-    [Resolved]
-    private PlayfieldManager playfieldManager { get; set; }
+    private RulesetContainer ruleset { get; }
 
     [Resolved]
     private LayoutManager layouts { get; set; }
@@ -26,8 +26,10 @@ public partial class GameplayHUD : Container
     private Container components;
     private PlayfieldHUD[] playfields;
 
-    public GameplayHUD()
+    public GameplayHUD(RulesetContainer ruleset)
     {
+        this.ruleset = ruleset;
+
         componentLookup.Add("Accuracy", typeof(AccuracyDisplay));
         componentLookup.Add("AttributeText", typeof(AttributeText));
         componentLookup.Add("Combo", typeof(ComboCounter));
@@ -55,9 +57,7 @@ public partial class GameplayHUD : Container
                 RelativeSizeAxes = Axes.Both,
                 Content = new[]
                 {
-                    playfields = Enumerable.Range(0, playfieldManager.Count)
-                                           .Select(i => new PlayfieldHUD(playfieldManager.Playfields[i]))
-                                           .ToArray()
+                    playfields = ruleset.PlayfieldManager.Players.Select(x => new PlayfieldHUD(x)).ToArray()
                 }
             }
         };
@@ -99,7 +99,7 @@ public partial class GameplayHUD : Container
         if (layouts.Layout.Value?.Gameplay == null)
             return;
 
-        foreach (var (key, value) in layouts.Layout.Value.Gameplay)
+        foreach (var (key, settings) in layouts.Layout.Value.Gameplay)
         {
             var typeName = key.Split('#')[0];
 
@@ -108,7 +108,7 @@ public partial class GameplayHUD : Container
 
             try
             {
-                var loop = value.AnchorToPlayfield ? playfields.Length : 1;
+                var loop = settings.AnchorToPlayfield ? playfields.Length : 1;
 
                 for (int i = 0; i < loop; i++)
                 {
@@ -117,16 +117,13 @@ public partial class GameplayHUD : Container
                     if (component == null)
                         throw new Exception($"Failed to create instance of {type}.");
 
-                    var field = playfields[i].Playfield;
-                    component.JudgementProcessor = field.JudgementProcessor;
-                    component.ScoreProcessor = field.ScoreProcessor;
-                    component.HealthProcessor = field.HealthProcessor;
-
-                    component.Settings = value;
+                    var manager = playfields[i].Player;
+                    component.Populate(settings, manager.JudgementProcessor, manager.HealthProcessor, manager.ScoreProcessor, ruleset.HitWindows);
                     LoadComponent(component);
-                    value.ApplyTo(component);
 
-                    if (value.AnchorToPlayfield)
+                    settings.ApplyTo(component);
+
+                    if (settings.AnchorToPlayfield)
                         playfields[i].Add(component);
                     else
                         components.Add(component);
@@ -141,11 +138,12 @@ public partial class GameplayHUD : Container
 
     private partial class PlayfieldHUD : Container
     {
-        public Playfield Playfield { get; }
+        public PlayfieldPlayer Player { get; }
+        public Playfield Playfield => Player.MainPlayfield;
 
-        public PlayfieldHUD(Playfield playfield)
+        public PlayfieldHUD(PlayfieldPlayer player)
         {
-            Playfield = playfield;
+            Player = player;
 
             AlwaysPresent = true;
             RelativeSizeAxes = Axes.Y;
